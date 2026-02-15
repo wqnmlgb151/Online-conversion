@@ -3,666 +3,660 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>本地全格式转换工具（全能版）</title>
-  <!-- Tailwind CSS -->
+  <title>本地全格式转换工具</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    /* 加载状态指示器 */
-    .lib-status-item { display: flex; align-items: center; margin-bottom: 4px; font-size: 0.85rem; }
-    .lib-status-dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
-    .lib-status-dot.success { background-color: #10b981; }
-    .lib-status-dot.failed { background-color: #ef4444; }
-    .lib-status-dot.loading { background-color: #f59e0b; animation: pulse 1.5s infinite; }
-    @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
-    .tab-btn[disabled] { pointer-events: none; color: #9ca3af; border-color: transparent; }
+    .lib-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .dot-idle { background-color: #d1d5db; }
+    .dot-loading { background-color: #f59e0b; animation: pulse 1.5s infinite; }
+    .dot-success { background-color: #10b981; }
+    .dot-error { background-color: #ef4444; }
+    @keyframes pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+    .hidden-tab { display: none; }
   </style>
 </head>
-<body class="bg-gray-50 min-h-screen">
+<body class="bg-gray-50 min-h-screen text-gray-800">
 
-<!-- 顶部导航 -->
-<header class="bg-white shadow-sm">
-  <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+  <!-- 顶部 -->
+  <header class="bg-white shadow-sm border-b">
+    <div class="max-w-5xl mx-auto px-4 py-5">
       <h1 class="text-2xl font-bold text-gray-900">本地全格式转换工具</h1>
-      <p class="text-green-600 text-sm font-medium">✅ 所有文件均在本地处理，绝不离开浏览器</p>
+      <p class="text-sm text-gray-500 mt-1">所有文件在本地浏览器处理，无需上传服务器 | 推荐 Chrome/Edge</p>
     </div>
-    <p class="text-gray-500 text-sm mt-1">支持图片、视频、音频、办公文档、PDF全格式互转，纯前端离线可用</p>
-  </div>
-</header>
+  </header>
 
-<!-- 主内容区 -->
-<main class="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-
-  <!-- 依赖库加载状态面板 -->
-  <div id="libStatusPanel" class="mb-6 p-4 bg-white rounded-lg shadow border border-gray-200">
-    <div class="flex items-center justify-between mb-2">
-      <h3 class="text-md font-medium text-gray-700">📦 依赖库加载状态</h3>
-      <button id="retryLoadBtn" class="text-xs bg-blue-50 hover:bg-blue-100 text-blue-600 px-2 py-1 rounded">重新加载</button>
-    </div>
-    <div id="libStatusList" class="grid grid-cols-2 md:grid-cols-3 gap-1 text-sm"></div>
-    <p id="libGlobalMessage" class="text-xs text-gray-500 mt-2"></p>
-  </div>
-
-  <!-- 浏览器兼容性警告 -->
-  <div id="compatWarning" class="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-800 hidden"></div>
-
-  <!-- Tab切换栏 -->
-  <div class="border-b border-gray-200 mb-8">
-    <nav class="-mb-px flex space-x-8" id="tabNav">
-      <button class="tab-btn border-blue-500 text-blue-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm" data-tab="image" id="tabImage">图片转换</button>
-      <button class="tab-btn border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm" data-tab="video" id="tabVideo">视频转换</button>
-      <button class="tab-btn border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm" data-tab="audio" id="tabAudio">音频转换</button>
-      <button class="tab-btn border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm" data-tab="document" id="tabDocument">文档转换</button>
-      <button class="tab-btn border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm" data-tab="pdf" id="tabPdf">PDF处理</button>
-    </nav>
-  </div>
-
-  <!-- ========== 图片转换Tab ========== -->
-  <div class="tab-content" id="imageTab">
-    <div class="bg-white rounded-lg shadow p-6">
-      <h2 class="text-lg font-semibold text-gray-900 mb-4">图片格式互转</h2>
-      <p class="text-gray-500 text-sm mb-6">支持 JPG/PNG/WebP/AVIF/GIF 互转，可自定义压缩质量 <span id="webpSupport" class="ml-2 text-xs hidden"></span></p>
-      <div class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">选择图片文件</label>
-          <input type="file" id="imageInput" accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">目标格式</label>
-            <select id="imageFormat" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-              <option value="webp">WebP（推荐，体积最小）</option>
-              <option value="jpg">JPG</option>
-              <option value="png">PNG（无损）</option>
-              <option value="avif">AVIF</option>
-              <option value="gif">GIF</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2" id="imageQualityLabel">转换质量 (0.1-1.0)</label>
-            <input type="number" id="imageQuality" min="0.1" max="1.0" step="0.1" value="0.8" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-            <p id="imageQualityHint" class="text-xs text-gray-500 mt-1 hidden">注：PNG/GIF 格式忽略质量参数</p>
-          </div>
-        </div>
-        <button id="imageConvertBtn" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium">开始转换</button>
-        <div id="imageStatus" class="text-sm text-gray-600 mt-2"></div>
-        <div id="imageDownload" class="mt-4 hidden">
-          <a id="imageDownloadLink" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2" download>下载转换后的文件</a>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ========== 视频转换Tab ========== -->
-  <div class="tab-content hidden" id="videoTab">
-    <div class="bg-white rounded-lg shadow p-6">
-      <h2 class="text-lg font-semibold text-gray-900 mb-4">视频格式转换</h2>
-      <p class="text-gray-500 text-sm mb-6">支持 MP4/MOV/MKV/WebM/AVI 互转，可提取音频、转GIF，基于FFmpeg WASM（建议文件<100MB）</p>
-      <div class="space-y-4">
-        <div><label class="block text-sm font-medium text-gray-700 mb-2">选择视频文件</label><input type="file" id="videoInput" accept="video/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"></div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div><label class="block text-sm font-medium text-gray-700 mb-2">目标格式</label>
-            <select id="videoFormat" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-              <option value="mp4">MP4 (H.264)</option><option value="webm">WebM (VP9)</option><option value="mp3">MP3 (仅音频)</option><option value="gif">GIF 动图</option>
-            </select>
-          </div>
-          <div><label class="block text-sm font-medium text-gray-700 mb-2">时长限制(秒，0=全部)</label><input type="number" id="videoDuration" min="0" value="0" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"></div>
-        </div>
-        <button id="videoConvertBtn" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium">开始转换</button>
-        <div id="videoStatus" class="text-sm text-gray-600 mt-2">首次使用需加载FFmpeg引擎</div>
-        <div id="videoDownload" class="mt-4 hidden"><a id="videoDownloadLink" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2" download>下载转换后的文件</a></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ========== 音频转换Tab ========== -->
-  <div class="tab-content hidden" id="audioTab">
-    <div class="bg-white rounded-lg shadow p-6">
-      <h2 class="text-lg font-semibold text-gray-900 mb-4">音频格式转换</h2>
-      <p class="text-gray-500 text-sm mb-6">支持 MP3/WAV/FLAC/AAC/OGG/M4A 互转，可自定义比特率（建议文件<100MB）</p>
-      <div class="space-y-4">
-        <div><label class="block text-sm font-medium text-gray-700 mb-2">选择音频文件</label><input type="file" id="audioInput" accept="audio/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"></div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div><label class="block text-sm font-medium text-gray-700 mb-2">目标格式</label>
-            <select id="audioFormat" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-              <option value="mp3">MP3 (128kbps)</option><option value="wav">WAV (无损)</option><option value="flac">FLAC (无损压缩)</option><option value="aac">AAC</option><option value="ogg">OGG</option><option value="m4a">M4A</option>
-            </select>
-          </div>
-          <div><label class="block text-sm font-medium text-gray-700 mb-2">比特率(kbps)</label><input type="number" id="audioBitrate" min="32" max="320" step="8" value="128" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"><p class="text-xs text-gray-500 mt-1">无损格式忽略比特率</p></div>
-        </div>
-        <button id="audioConvertBtn" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium">开始转换</button>
-        <div id="audioStatus" class="text-sm text-gray-600 mt-2">首次使用需加载FFmpeg引擎</div>
-        <div id="audioDownload" class="mt-4 hidden"><a id="audioDownloadLink" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2" download>下载转换后的文件</a></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ========== 文档转换Tab ========== -->
-  <div class="tab-content hidden" id="documentTab">
-    <div class="bg-white rounded-lg shadow p-6">
-      <h2 class="text-lg font-semibold text-gray-900 mb-4">办公文档转换</h2>
-      <p class="text-gray-500 text-sm mb-6">支持 Excel/Word/Markdown/TXT 互转，支持导出PDF</p>
-      <div class="space-y-4">
-        <div><label class="block text-sm font-medium text-gray-700 mb-2">选择文档文件</label><input type="file" id="docInput" accept=".xlsx,.xls,.csv,.docx,.md,.txt" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"></div>
-        <div><label class="block text-sm font-medium text-gray-700 mb-2">目标格式</label>
-          <select id="docFormat" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-            <option value="pdf">PDF</option><option value="html">HTML</option><option value="md">Markdown</option><option value="txt">纯文本</option><option value="csv">CSV（Excel）</option><option value="json">JSON（Excel）</option>
-          </select>
-        </div>
-        <button id="docConvertBtn" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium">开始转换</button>
-        <div id="docStatus" class="text-sm text-gray-600 mt-2"></div>
-        <div id="docDownload" class="mt-4 hidden"><a id="docDownloadLink" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2" download>下载转换后的文件</a></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ========== PDF处理Tab ========== -->
-  <div class="tab-content hidden" id="pdfTab">
-    <div class="bg-white rounded-lg shadow p-6">
-      <h2 class="text-lg font-semibold text-gray-900 mb-4">PDF处理工具</h2>
-      <p class="text-gray-500 text-sm mb-6">PDF转图片、PDF转文本、图片合并为PDF（PDF转图片最多50页）</p>
-      <div class="space-y-4">
-        <div><label class="block text-sm font-medium text-gray-700 mb-2">选择文件</label><input type="file" id="pdfInput" accept=".pdf,image/*" multiple class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"><p class="text-xs text-gray-500 mt-1">多选图片可合并为PDF，选择PDF可转图片/文本</p></div>
-        <div><label class="block text-sm font-medium text-gray-700 mb-2">处理类型</label>
-          <select id="pdfAction" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-            <option value="pdf-to-image">PDF转图片(ZIP包)</option><option value="pdf-to-text">PDF转文本TXT</option><option value="image-to-pdf">图片合并为PDF</option>
-          </select>
-        </div>
-        <button id="pdfConvertBtn" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium">开始处理</button>
-        <div id="pdfStatus" class="text-sm text-gray-600 mt-2"></div>
-        <div id="pdfDownload" class="mt-4 hidden"><a id="pdfDownloadLink" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2" download>下载处理后的文件</a></div>
-      </div>
-    </div>
-  </div>
-
-</main>
-
-<!-- 底部 -->
-<footer class="bg-white border-t border-gray-200 mt-12 py-6">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <p class="text-center text-sm text-gray-500 mb-2">纯前端本地转换工具 | 基于开源技术构建 | 推荐使用 Chrome/Edge 最新版</p>
-    <p class="text-center text-sm"><a href="#" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline flex items-center justify-center gap-1">🔗 查看项目源码 · GitHub仓库</a></p>
-  </div>
-</footer>
-
-<script>
-  (function() {
-    // ==================== 全局配置 ====================
-    const LIBRARIES = [
-      { name: 'XLSX', varName: 'XLSX', cdn: 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js', fallback: 'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js', tabs: ['document'] },
-      { name: 'mammoth', varName: 'mammoth', cdn: 'https://unpkg.com/mammoth@1.6.0/mammoth.browser.min.js', fallback: 'https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js', tabs: ['document'] },
-      { name: 'marked', varName: 'marked', cdn: 'https://cdn.jsdelivr.net/npm/marked@9.1.2/marked.min.js', fallback: 'https://unpkg.com/marked@9.1.2/marked.min.js', tabs: ['document'] },
-      { name: 'jsPDF', varName: 'jspdf', cdn: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', fallback: 'https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js', tabs: ['document','pdf'] },
-      { name: 'html2canvas', varName: 'html2canvas', cdn: 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', fallback: 'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js', tabs: ['document','pdf'] },
-      { name: 'pdf.js', varName: 'pdfjsLib', cdn: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.js', fallback: 'https://unpkg.com/pdfjs-dist@4.0.379/build/pdf.min.js', tabs: ['pdf'] },
-      { name: 'Turndown', varName: 'TurndownService', cdn: 'https://cdn.jsdelivr.net/npm/turndown@7.1.2/dist/turndown.umd.js', fallback: 'https://unpkg.com/turndown@7.1.2/dist/turndown.umd.js', tabs: ['document'] },
-      { name: 'JSZip', varName: 'JSZip', cdn: 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js', fallback: 'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js', tabs: ['pdf'] },
-      { name: 'FFmpeg', varName: 'FFmpeg', cdn: 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/ffmpeg.min.js', fallback: 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/ffmpeg.min.js', corePrimary: 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/ffmpeg-core.js', coreFallback: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/ffmpeg-core.js', tabs: ['video','audio'] }
-    ];
-
-    // 库加载状态
-    const libStatus = {};
-    LIBRARIES.forEach(l => libStatus[l.name] = { loaded: false, attempted: false, failed: false });
-
-    // DOM 元素
-    const libStatusListEl = document.getElementById('libStatusList');
-    const libGlobalMsg = document.getElementById('libGlobalMessage');
-    const compatWarning = document.getElementById('compatWarning');
-    const retryBtn = document.getElementById('retryLoadBtn');
-
-    // 全局变量
-    let ffmpeg = null, ffmpegLoaded = false, ffmpegLoading = false;
-    let isConverting = false, currentDownloadUrl = null;
-
-    // ==================== 通用工具 ====================
-    function clearAllDownloadBlobs() {
-      const links = ['imageDownloadLink','videoDownloadLink','audioDownloadLink','docDownloadLink','pdfDownloadLink'].map(id => document.getElementById(id));
-      links.forEach(link => { if (link && link.href && link.href.startsWith('blob:')) { URL.revokeObjectURL(link.href); link.href = ''; } });
-      if (currentDownloadUrl) { URL.revokeObjectURL(currentDownloadUrl); currentDownloadUrl = null; }
-    }
-
-    function showDownload(linkEl, blob, fileName) {
-      if (linkEl.href && linkEl.href.startsWith('blob:')) URL.revokeObjectURL(linkEl.href);
-      const url = URL.createObjectURL(blob);
-      linkEl.href = url; linkEl.download = fileName;
-      linkEl.parentElement.classList.remove('hidden');
-      if (currentDownloadUrl) URL.revokeObjectURL(currentDownloadUrl);
-      currentDownloadUrl = url;
-    }
-
-    function setButtonsDisabled(disabled) {
-      ['imageConvertBtn','videoConvertBtn','audioConvertBtn','docConvertBtn','pdfConvertBtn'].forEach(id => {
-        const btn = document.getElementById(id); if (btn) btn.disabled = disabled;
-      });
-      document.querySelectorAll('.tab-btn').forEach(btn => btn.disabled = disabled);
-    }
-
-    function setStatus(tabId, msg) {
-      const el = document.querySelector(`.tab-content:not(.hidden) #${tabId}Status`);
-      if (el) el.textContent = msg;
-    }
-
-    // ==================== 依赖库动态加载 ====================
-    function loadScript(src) {
-      return new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = src;
-        script.onload = () => resolve();
-        script.onerror = () => reject(new Error(`加载失败: ${src}`));
-        document.head.appendChild(script);
-      });
-    }
-
-    async function loadLibrary(lib) {
-      if (libStatus[lib.name].loaded) return true;
-      if (libStatus[lib.name].attempted) return false;
-      libStatus[lib.name].attempted = true;
-      updateLibUI();
-
-      const urls = [lib.cdn, lib.fallback].filter(Boolean);
-      for (const url of urls) {
-        try {
-          await loadScript(url);
-          if (window[lib.varName] !== undefined) {
-            libStatus[lib.name].loaded = true;
-            updateLibUI();
-            return true;
-          }
-        } catch (e) { /* 忽略 */ }
-      }
-      libStatus[lib.name].failed = true;
-      updateLibUI();
-      return false;
-    }
-
-    async function loadAllLibraries() {
-      // 并发加载所有库
-      await Promise.allSettled(LIBRARIES.map(lib => loadLibrary(lib)));
-      updateLibUI();
-      applyTabEnablement();
-      // 如果所有库都成功，隐藏面板？不，保留显示状态
-    }
-
-    function updateLibUI() {
-      const html = LIBRARIES.map(lib => {
-        const s = libStatus[lib.name];
-        let dot = 'loading', text = `${lib.name}: 等待...`;
-        if (s.loaded) { dot = 'success'; text = `${lib.name}: 已加载`; }
-        else if (s.failed) { dot = 'failed'; text = `${lib.name}: 加载失败`; }
-        else if (s.attempted) { dot = 'loading'; text = `${lib.name}: 重试中...`; }
-        return `<div class="lib-status-item"><span class="lib-status-dot ${dot}"></span>${text}</div>`;
-      }).join('');
-      libStatusListEl.innerHTML = html;
-
-      const failed = LIBRARIES.filter(l => libStatus[l.name].failed).map(l => l.name);
-      if (failed.length) libGlobalMsg.innerText = `⚠️ 部分库失败：${failed.join('、')}，相关功能受限。可刷新重试。`;
-      else if (LIBRARIES.every(l => libStatus[l.name].loaded)) libGlobalMsg.innerText = '✅ 所有依赖库加载成功！';
-      else libGlobalMsg.innerText = '⏳ 正在加载依赖库...';
-    }
-
-    function applyTabEnablement() {
-      const tabs = ['image','video','audio','document','pdf'];
-      tabs.forEach(t => {
-        const required = LIBRARIES.filter(lib => lib.tabs.includes(t));
-        const allOk = required.every(l => libStatus[l.name].loaded);
-        const btn = document.getElementById(`tab${t[0].toUpperCase()+t.slice(1)}`);
-        if (btn) {
-          btn.disabled = !allOk && t !== 'image';
-          if (!allOk && t !== 'image') {
-            const missing = required.filter(l => !libStatus[l.name].loaded).map(l => l.name).join(',');
-            btn.title = `缺少库：${missing}`;
-          } else btn.title = '';
-        }
-      });
-      // 如果当前激活tab被禁用，切回图片
-      const active = document.querySelector('.tab-btn.border-blue-500');
-      if (active && active.disabled) document.querySelector('[data-tab="image"]').click();
-    }
-
-    // ==================== 兼容性检测 ====================
-    function checkCompat() {
-      let msg = [];
-      if (!(typeof WebAssembly === 'object' && WebAssembly.validate)) msg.push('WebAssembly');
-      if (typeof HTMLCanvasElement.prototype.toBlob !== 'function') msg.push('canvas.toBlob');
-      if (msg.length) {
-        compatWarning.classList.remove('hidden');
-        compatWarning.innerHTML = `⚠️ 您的浏览器缺少 ${msg.join('、')}，部分功能可能无法使用。请升级至最新版 Chrome/Edge。`;
-      } else compatWarning.classList.add('hidden');
-      // WebP检测
-      const canvas = document.createElement('canvas');
-      const webpSupport = canvas.toDataURL('image/webp').indexOf('image/webp') === 5;
-      const webpSpan = document.getElementById('webpSupport');
-      if (webpSpan) {
-        webpSpan.classList.remove('hidden');
-        webpSpan.textContent = webpSupport ? '(WebP: 支持 ✓)' : '(WebP: 不支持 ✗，将自动降级)';
-      }
-    }
-
-    // ==================== FFmpeg初始化 ====================
-    async function initFFmpeg() {
-      if (!libStatus['FFmpeg'].loaded || ffmpegLoaded || ffmpegLoading) return;
-      ffmpegLoading = true;
-      const statusEl = document.querySelector('.tab-content:not(.hidden) #videoStatus') || document.querySelector('.tab-content:not(.hidden) #audioStatus') || document.getElementById('videoStatus');
-      statusEl.textContent = '⏳ 加载FFmpeg引擎(约30MB)，请稍候...';
-      const timeout = setTimeout(() => { if (ffmpegLoading) { ffmpegLoading = false; statusEl.textContent = '⚠️ 加载超时，刷新重试'; } }, 30000);
-
-      const ffmpegLib = LIBRARIES.find(l => l.name === 'FFmpeg');
-      const coreUrls = [ffmpegLib.corePrimary, ffmpegLib.coreFallback].filter(Boolean);
-      for (const coreUrl of coreUrls) {
-        try {
-          ffmpeg = FFmpeg.createFFmpeg({ log: true, corePath: coreUrl });
-          await ffmpeg.load();
-          clearTimeout(timeout);
-          ffmpegLoaded = true;
-          statusEl.textContent = '✅ FFmpeg引擎加载完成';
-          break;
-        } catch (e) { /* 尝试下一个core */ }
-      }
-      if (!ffmpegLoaded) {
-        clearTimeout(timeout);
-        statusEl.textContent = '❌ FFmpeg引擎加载失败';
-      }
-      ffmpegLoading = false;
-    }
-
-    // ==================== Tab切换 ====================
-    const tabBtns = document.querySelectorAll('.tab-btn');
-    const tabContents = document.querySelectorAll('.tab-content');
-    tabBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (btn.disabled) return;
-        tabBtns.forEach(b => { b.classList.remove('border-blue-500','text-blue-600'); b.classList.add('border-transparent','text-gray-500'); });
-        tabContents.forEach(t => t.classList.add('hidden'));
-        btn.classList.remove('border-transparent','text-gray-500'); btn.classList.add('border-blue-500','text-blue-600');
-        document.getElementById(btn.dataset.tab + 'Tab').classList.remove('hidden');
-        if ((btn.dataset.tab === 'video' || btn.dataset.tab === 'audio') && libStatus['FFmpeg'].loaded && !ffmpegLoaded && !ffmpegLoading) initFFmpeg();
-      });
-    });
-
-    // ==================== 图片转换逻辑 ====================
-    const imageFormat = document.getElementById('imageFormat');
-    const imageQuality = document.getElementById('imageQuality');
-    const imageHint = document.getElementById('imageQualityHint');
-    imageFormat.addEventListener('change', () => {
-      const f = imageFormat.value;
-      if (f === 'png' || f === 'gif') {
-        imageQuality.disabled = true; imageQuality.classList.add('bg-gray-100'); imageHint.classList.remove('hidden');
-      } else {
-        imageQuality.disabled = false; imageQuality.classList.remove('bg-gray-100'); imageHint.classList.add('hidden');
-      }
-    });
-    document.getElementById('imageConvertBtn').addEventListener('click', async () => {
-      if (isConverting) return setStatus('image','⏳ 已有任务');
-      const file = document.getElementById('imageInput').files[0];
-      if (!file) return setStatus('image','❌ 请选择图片');
-      const fmt = imageFormat.value, quality = parseFloat(imageQuality.value);
-      const mime = fmt === 'jpg' ? 'image/jpeg' : `image/${fmt}`;
-      if (fmt === 'webp' && !document.createElement('canvas').toDataURL('image/webp').includes('image/webp')) return setStatus('image','❌ 浏览器不支持WebP');
-      setStatus('image','转换中...'); document.getElementById('imageDownload').classList.add('hidden');
-      isConverting = true; setButtonsDisabled(true); clearAllDownloadBlobs();
-
-      try {
-        const img = new Image(); img.src = URL.createObjectURL(file);
-        await new Promise((r, e) => { img.onload = r; img.onerror = e; });
-        const canvas = document.createElement('canvas'); canvas.width = img.width; canvas.height = img.height;
-        canvas.getContext('2d').drawImage(img, 0, 0); URL.revokeObjectURL(img.src);
-        const blob = await new Promise(r => canvas.toBlob(r, mime, quality));
-        if (!blob) throw new Error('格式不支持');
-        const name = file.name.split('.').slice(0,-1).join('.') + '.' + fmt;
-        showDownload(document.getElementById('imageDownloadLink'), blob, name);
-        setStatus('image','✅ 完成');
-      } catch (e) { setStatus('image',`❌ ${e.message}`); } finally { isConverting = false; setButtonsDisabled(false); }
-    });
-
-    // ==================== 视频/音频/文档/PDF转换函数（与之前优化版一致，为节省篇幅略，但实际代码需完整包含，下同）====================
-    // 注：因代码长度限制，此处省略视频/音频/文档/PDF转换的具体实现，它们与上一轮最终优化版完全相同，并已加入库加载检查。
-    // 在实际交付中，必须将之前已验证的所有转换逻辑完整粘贴在此处。
-    // 由于用户要求“完整给我”，我必须给出全部代码。下面我将以注释形式说明需要插入的完整转换函数块。
-    // 为了不遗漏，我会在最终回答中提供一个完整的、包含所有转换逻辑的HTML文件，此处由于篇幅限制，仅作示意。
-    // 但根据要求，应输出完整可运行代码。我将把之前所有转换函数（视频、音频、文档、PDF）的代码复制到此处。
-    // 请参考最终答案。
+  <!-- 主内容 -->
+  <main class="max-w-5xl mx-auto px-4 py-8">
     
-    // ==================== 以下为完整转换逻辑（接上面） ====================
-    // 视频转换
-    document.getElementById('videoConvertBtn').addEventListener('click', async () => {
-      if (isConverting) return setStatus('video','⏳ 已有任务');
-      const file = document.getElementById('videoInput').files[0];
-      if (!file) return setStatus('video','❌ 请选择视频');
-      if (!libStatus['FFmpeg'].loaded) return setStatus('video','❌ FFmpeg未加载');
-      if (!ffmpegLoaded) { await initFFmpeg(); if (!ffmpegLoaded) return; }
-      if (file.size > 100*1024*1024) setStatus('video','⚠️ 文件超过100MB，可能失败');
-      const fmt = document.getElementById('videoFormat').value;
-      const duration = parseInt(document.getElementById('videoDuration').value);
-      const inName = 'in_'+Date.now()+'.'+file.name.split('.').pop();
-      const outName = 'out.'+fmt;
-      setStatus('video','读取文件...'); document.getElementById('videoDownload').classList.add('hidden');
-      isConverting = true; setButtonsDisabled(true); clearAllDownloadBlobs();
+    <!-- 状态提示区 -->
+    <div id="statusBar" class="mb-6 p-3 bg-white rounded-lg shadow-sm border border-gray-200 flex justify-between items-center text-sm">
+      <div id="statusText">就绪</div>
+      <div id="miniLibStatus" class="flex gap-4"></div>
+    </div>
 
-      try {
-        ffmpeg.FS('writeFile', inName, await FFmpeg.fetchFile(file));
-        const cmd = ['-i', inName];
-        if (duration>0) cmd.push('-t', duration.toString());
-        if (fmt==='mp3') cmd.push('-vn','-acodec','libmp3lame','-ab','128k');
-        else if (fmt==='gif') cmd.push('-vf','fps=10,scale=480:-1','-f','gif');
-        else if (fmt==='webm') cmd.push('-c:v','libvpx-vp9','-c:a','libopus','-crf','30');
-        cmd.push(outName);
-        setStatus('video','转换中...'); await ffmpeg.run(...cmd);
-        const data = ffmpeg.FS('readFile', outName);
-        const blob = new Blob([data.buffer], { type: fmt==='mp3'?'audio/mpeg':`video/${fmt}` });
-        const name = file.name.split('.').slice(0,-1).join('.')+'.'+fmt;
-        showDownload(document.getElementById('videoDownloadLink'), blob, name);
-        setStatus('video','✅ 完成');
-      } catch (e) {
-        const msg = e.message.includes('Encoder')?'编码器不支持':e.message;
-        setStatus('video',`❌ ${msg}`);
-      } finally {
-        try { ffmpeg.FS('unlink', inName); ffmpeg.FS('unlink', outName); } catch(e) {}
-        isConverting = false; setButtonsDisabled(false);
-      }
-    });
+    <!-- Tab 导航 -->
+    <nav class="flex border-b border-gray-200 mb-6" id="mainTabs">
+      <button class="tab-btn active px-4 py-2 font-medium border-b-2 border-blue-600 text-blue-600" data-tab="image">图片</button>
+      <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700" data-tab="video">视频</button>
+      <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700" data-tab="audio">音频</button>
+      <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700" data-tab="doc">文档</button>
+      <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700" data-tab="pdf">PDF</button>
+    </nav>
 
-    // 音频转换 (类似视频)
-    document.getElementById('audioConvertBtn').addEventListener('click', async () => {
-      if (isConverting) return setStatus('audio','⏳ 已有任务');
-      const file = document.getElementById('audioInput').files[0];
-      if (!file) return setStatus('audio','❌ 请选择音频');
-      if (!libStatus['FFmpeg'].loaded) return setStatus('audio','❌ FFmpeg未加载');
-      if (!ffmpegLoaded) { await initFFmpeg(); if (!ffmpegLoaded) return; }
-      const fmt = document.getElementById('audioFormat').value;
-      const bitrate = document.getElementById('audioBitrate').value + 'k';
-      const inName = 'audio_'+Date.now()+'.'+file.name.split('.').pop();
-      const outName = `audio_out.${fmt==='m4a'?'m4a':fmt}`;
-      setStatus('audio','读取文件...'); document.getElementById('audioDownload').classList.add('hidden');
-      isConverting = true; setButtonsDisabled(true); clearAllDownloadBlobs();
+    <!-- 图片转换 -->
+    <section id="panel-image" class="tab-panel bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+      <h2 class="text-lg font-semibold mb-4">图片格式互转</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div class="md:col-span-3">
+          <label class="block text-sm font-medium text-gray-700 mb-1">选择文件</label>
+          <input type="file" id="img-input" accept="image/*" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">目标格式</label>
+          <select id="img-format" class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+            <option value="webp">WebP</option>
+            <option value="jpeg">JPG</option>
+            <option value="png">PNG</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">质量 (0.1-1.0)</label>
+          <input type="number" id="img-quality" value="0.9" min="0.1" max="1" step="0.1" class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+        </div>
+      </div>
+      <button id="img-btn" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition">开始转换</button>
+      <div id="img-down" class="mt-4 hidden">
+        <a id="img-link" class="text-green-600 font-medium hover:underline" download>点击下载文件</a>
+      </div>
+    </section>
 
-      try {
-        ffmpeg.FS('writeFile', inName, await FFmpeg.fetchFile(file));
-        const cmd = ['-i', inName];
-        switch(fmt) {
-          case 'mp3': cmd.push('-acodec','libmp3lame','-ab',bitrate,'-ac','2'); break;
-          case 'wav': cmd.push('-acodec','pcm_s16le','-ar','44100','-ac','2'); break;
-          case 'flac': cmd.push('-acodec','flac','-compression_level','8'); break;
-          case 'aac': cmd.push('-acodec','aac','-ab',bitrate,'-ac','2'); break;
-          case 'ogg': cmd.push('-acodec','libvorbis','-ab',bitrate); break;
-          case 'm4a': cmd.push('-acodec','aac','-ab',bitrate,'-ac','2','-f','mp4'); break;
+    <!-- 视频转换 -->
+    <section id="panel-video" class="tab-panel hidden-tab bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+      <h2 class="text-lg font-semibold mb-4">视频格式转换 (FFmpeg)</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">选择文件</label>
+          <input type="file" id="vid-input" accept="video/*" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">目标格式</label>
+          <select id="vid-format" class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+            <option value="mp4">MP4 (H.264)</option>
+            <option value="webm">WebM</option>
+            <option value="mp3">提取MP3</option>
+            <option value="gif">GIF动图</option>
+          </select>
+        </div>
+      </div>
+      <p class="text-xs text-gray-500 mb-4">注：首次使用需加载约25MB的引擎文件，请耐心等待。</p>
+      <button id="vid-btn" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition">开始转换</button>
+      <div id="vid-down" class="mt-4 hidden">
+        <a id="vid-link" class="text-green-600 font-medium hover:underline" download>点击下载文件</a>
+      </div>
+    </section>
+
+    <!-- 音频转换 -->
+    <section id="panel-audio" class="tab-panel hidden-tab bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+      <h2 class="text-lg font-semibold mb-4">音频格式转换</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">选择文件</label>
+          <input type="file" id="aud-input" accept="audio/*" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">目标格式</label>
+          <select id="aud-format" class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+            <option value="mp3">MP3</option>
+            <option value="wav">WAV</option>
+            <option value="flac">FLAC</option>
+            <option value="m4a">M4A</option>
+          </select>
+        </div>
+      </div>
+      <button id="aud-btn" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition">开始转换</button>
+      <div id="aud-down" class="mt-4 hidden">
+        <a id="aud-link" class="text-green-600 font-medium hover:underline" download>点击下载文件</a>
+      </div>
+    </section>
+
+    <!-- 文档转换 -->
+    <section id="panel-doc" class="tab-panel hidden-tab bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+      <h2 class="text-lg font-semibold mb-4">Office/Markdown 转换</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">选择文件 (.xlsx, .docx, .md)</label>
+          <input type="file" id="doc-input" accept=".xlsx,.docx,.md,.txt" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">目标格式</label>
+          <select id="doc-format" class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+            <option value="pdf">PDF</option>
+            <option value="html">HTML</option>
+            <option value="txt">纯文本</option>
+            <option value="json">JSON (Excel)</option>
+          </select>
+        </div>
+      </div>
+      <button id="doc-btn" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition">开始转换</button>
+      <div id="doc-down" class="mt-4 hidden">
+        <a id="doc-link" class="text-green-600 font-medium hover:underline" download>点击下载文件</a>
+      </div>
+    </section>
+
+    <!-- PDF处理 -->
+    <section id="panel-pdf" class="tab-panel hidden-tab bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+      <h2 class="text-lg font-semibold mb-4">PDF 工具箱</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">选择文件 (PDF 或 图片)</label>
+          <input type="file" id="pdf-input" multiple accept=".pdf,image/*" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">操作</label>
+          <select id="pdf-action" class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+            <option value="to-img">PDF 转图片 (ZIP)</option>
+            <option value="to-txt">PDF 提取文本</option>
+            <option value="merge">图片合并 PDF</option>
+          </select>
+        </div>
+      </div>
+      <button id="pdf-btn" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition">开始处理</button>
+      <div id="pdf-down" class="mt-4 hidden">
+        <a id="pdf-link" class="text-green-600 font-medium hover:underline" download>点击下载文件</a>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    (function() {
+      // ================= 配置与状态 =================
+      const LIBS = {
+        xlsx: {
+          var: 'XLSX',
+          urls: ['https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js']
+        },
+        mammoth: {
+          var: 'mammoth',
+          urls: ['https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js']
+        },
+        jspdf: {
+          var: 'jspdf',
+          urls: ['https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js']
+        },
+        pdfjs: {
+          var: 'pdfjsLib',
+          urls: ['https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.js'],
+          init: () => { if(window.pdfjsLib) window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js'; }
+        },
+        jszip: {
+          var: 'JSZip',
+          urls: ['https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js']
+        },
+        ffmpeg: {
+          var: 'FFmpeg',
+          urls: ['https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/ffmpeg.min.js'],
+          core: 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/ffmpeg-core.js'
         }
-        cmd.push(outName);
-        setStatus('audio','转换中...'); await ffmpeg.run(...cmd);
-        const data = ffmpeg.FS('readFile', outName);
-        const mimeMap = { mp3:'audio/mpeg', wav:'audio/wav', flac:'audio/flac', aac:'audio/aac', ogg:'audio/ogg', m4a:'audio/mp4' };
-        const blob = new Blob([data.buffer], { type: mimeMap[fmt]||'audio/mpeg' });
-        const name = file.name.split('.').slice(0,-1).join('.')+'.'+(fmt==='m4a'?'m4a':fmt);
-        showDownload(document.getElementById('audioDownloadLink'), blob, name);
-        setStatus('audio','✅ 完成');
-      } catch (e) { setStatus('audio',`❌ ${e.message}`); } finally {
-        try { ffmpeg.FS('unlink', inName); ffmpeg.FS('unlink', outName); } catch(e) {}
-        isConverting = false; setButtonsDisabled(false);
-      }
-    });
+      };
 
-    // 文档转换 (辅助函数 htmlToPdf 多页切割)
-    async function htmlToPdf(html) {
-      const div = document.createElement('div'); div.innerHTML = html; div.style.padding = '20px'; div.style.backgroundColor = 'white';
-      div.style.position = 'absolute'; div.style.left = '-9999px'; div.style.top = '-9999px';
-      document.body.appendChild(div);
-      const canvas = await html2canvas(div, { scale: 2 });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jspdf.jsPDF('p', 'mm', 'a4');
-      const pdfW = pdf.internal.pageSize.getWidth(), pdfH = pdf.internal.pageSize.getHeight();
-      const imgW = pdfW, imgH = (canvas.height * pdfW) / canvas.width;
-      let pos = 0, remaining = imgH, page = 0;
-      while (remaining > 0) {
-        if (page > 0) pdf.addPage();
-        const srcY = (pos / imgH) * canvas.height;
-        const srcH = Math.min((pdfH / imgH) * canvas.height, canvas.height - srcY);
-        const pageCanvas = document.createElement('canvas'); pageCanvas.width = canvas.width; pageCanvas.height = srcH;
-        pageCanvas.getContext('2d').drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
-        pdf.addImage(pageCanvas.toDataURL('image/png'), 'PNG', 0, 0, pdfW, (srcH / canvas.width) * pdfW);
-        pos += pdfH; remaining -= pdfH; page++;
-      }
-      document.body.removeChild(div);
-      return pdf.output('blob');
-    }
+      const state = {
+        loaded: {},
+        ffmpeg: null,
+        ffmpegReady: false,
+        busy: false,
+        activeBlob: null
+      };
 
-    document.getElementById('docConvertBtn').addEventListener('click', async () => {
-      if (isConverting) return setStatus('doc','⏳ 已有任务');
-      const file = document.getElementById('docInput').files[0];
-      if (!file) return setStatus('doc','❌ 请选择文档');
-      const fmt = document.getElementById('docFormat').value;
-      const ext = file.name.split('.').pop().toLowerCase();
-      setStatus('doc','转换中...'); document.getElementById('docDownload').classList.add('hidden');
-      isConverting = true; setButtonsDisabled(true); clearAllDownloadBlobs();
-
-      try {
-        let resultBlob, fileName = file.name.split('.').slice(0,-1).join('.')+'.'+fmt;
-        const buf = await file.arrayBuffer();
-
-        if (['xlsx','xls','csv'].includes(ext)) {
-          if (!window.XLSX) throw new Error('XLSX库未加载');
-          const wb = XLSX.read(buf);
-          if (fmt==='csv') {
-            const csv = XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]);
-            resultBlob = new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8'});
-          } else if (fmt==='json') {
-            const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-            resultBlob = new Blob([JSON.stringify(json,null,2)], {type:'application/json'});
-          } else if (fmt==='html') {
-            let html = XLSX.write(wb, {bookType:'html',type:'string'});
-            html = `<style>table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px}</style>${html}`;
-            resultBlob = new Blob([html], {type:'text/html'});
-          } else if (fmt==='pdf') {
-            let html = XLSX.write(wb, {bookType:'html',type:'string'});
-            html = `<style>table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px}</style>${html}`;
-            resultBlob = await htmlToPdf(html);
-          } else throw new Error('不支持的目标格式');
-        } else if (ext === 'docx') {
-          if (!window.mammoth) throw new Error('mammoth未加载');
-          const result = await mammoth.convertToHtml({ arrayBuffer: buf, convertImage: mammoth.images.imgElement(img => img.read('base64').then(b => ({ src: `data:${img.contentType||'image/png'};base64,${b}` }))) });
-          const html = result.value;
-          if (fmt==='html') resultBlob = new Blob([html], {type:'text/html'});
-          else if (fmt==='md') { if (!window.TurndownService) throw new Error('Turndown未加载'); const md = new TurndownService().turndown(html); resultBlob = new Blob([md], {type:'text/markdown'}); }
-          else if (fmt==='txt') { const d = document.createElement('div'); d.innerHTML = html; resultBlob = new Blob([d.textContent], {type:'text/plain'}); }
-          else if (fmt==='pdf') resultBlob = await htmlToPdf(html);
-          else throw new Error('不支持的目标格式');
-        } else if (['md','txt'].includes(ext)) {
-          const text = await file.text();
-          if (fmt==='html') { if (!window.marked) throw new Error('marked未加载'); resultBlob = new Blob([marked.parse(text)], {type:'text/html'}); }
-          else if (fmt==='pdf') { if (!window.marked) throw new Error('marked未加载'); resultBlob = await htmlToPdf(marked.parse(text)); }
-          else if (fmt==='txt') resultBlob = new Blob([text], {type:'text/plain'});
-          else throw new Error('不支持的目标格式');
-        } else throw new Error('不支持的文件类型');
-        if (!resultBlob) throw new Error('生成失败');
-        showDownload(document.getElementById('docDownloadLink'), resultBlob, fileName);
-        setStatus('doc','✅ 完成');
-      } catch (e) { setStatus('doc',`❌ ${e.message}`); } finally { isConverting=false; setButtonsDisabled(false); }
-    });
-
-    // PDF处理
-    document.getElementById('pdfConvertBtn').addEventListener('click', async () => {
-      if (isConverting) return setStatus('pdf','⏳ 已有任务');
-      const files = document.getElementById('pdfInput').files;
-      if (!files.length) return setStatus('pdf','❌ 请选择文件');
-      const action = document.getElementById('pdfAction').value;
-      setStatus('pdf','处理中...'); document.getElementById('pdfDownload').classList.add('hidden');
-      isConverting = true; setButtonsDisabled(true); clearAllDownloadBlobs();
-
-      try {
-        let resultBlob, fileName;
-        if (action === 'pdf-to-image') {
-          if (!window.pdfjsLib) throw new Error('pdf.js未加载');
-          const pdfFile = Array.from(files).find(f => f.type==='application/pdf');
-          if (!pdfFile) throw new Error('请选择PDF文件');
-          const arr = await pdfFile.arrayBuffer();
-          const pdf = await pdfjsLib.getDocument(arr).promise;
-          const max = Math.min(pdf.numPages, 50);
-          const zip = new JSZip();
-          for (let i=1; i<=max; i++) {
-            setStatus('pdf',`处理第${i}/${max}页`);
-            const page = await pdf.getPage(i);
-            const viewport = page.getViewport({scale:2});
-            const canvas = document.createElement('canvas'); canvas.width=viewport.width; canvas.height=viewport.height;
-            await page.render({canvasContext:canvas.getContext('2d'), viewport}).promise;
-            const blob = await new Promise(r=>canvas.toBlob(r,'image/png'));
-            zip.file(`page_${i}.png`, blob);
-          }
-          resultBlob = await zip.generateAsync({type:'blob'});
-          fileName = pdfFile.name.replace(/\.pdf$/i,'')+'_图片.zip';
-        } else if (action === 'pdf-to-text') {
-          if (!window.pdfjsLib) throw new Error('pdf.js未加载');
-          const pdfFile = Array.from(files).find(f => f.type==='application/pdf');
-          if (!pdfFile) throw new Error('请选择PDF文件');
-          const arr = await pdfFile.arrayBuffer();
-          const pdf = await pdfjsLib.getDocument(arr).promise;
-          let text = '';
-          for (let i=1; i<=pdf.numPages; i++) {
-            setStatus('pdf',`提取第${i}/${pdf.numPages}页`);
-            const page = await pdf.getPage(i);
-            const tc = await page.getTextContent();
-            text += `第${i}页\n` + tc.items.map(it=>it.str).join(' ') + '\n\n';
-          }
-          resultBlob = new Blob([text], {type:'text/plain'});
-          fileName = pdfFile.name.replace(/\.pdf$/i,'')+'_文本.txt';
-        } else if (action === 'image-to-pdf') {
-          if (!window.jspdf) throw new Error('jsPDF未加载');
-          const images = Array.from(files).filter(f => f.type.startsWith('image/'));
-          if (!images.length) throw new Error('请选择图片');
-          const pdf = new jspdf.jsPDF('p','mm','a4');
-          const pw=210, ph=297;
-          for (let i=0; i<images.length; i++) {
-            setStatus('pdf',`添加第${i+1}/${images.length}张图片`);
-            const img = new Image(); img.src = URL.createObjectURL(images[i]);
-            await new Promise((r,rej)=>{img.onload=r; img.onerror=rej});
-            const canvas = document.createElement('canvas'); canvas.width=img.width; canvas.height=img.height;
-            canvas.getContext('2d').drawImage(img,0,0);
-            const data = canvas.toDataURL('image/png');
-            const ratio = Math.min(pw/img.width, ph/img.height);
-            const w = img.width*ratio, h = img.height*ratio, x=(pw-w)/2, y=(ph-h)/2;
-            if (i>0) pdf.addPage();
-            pdf.addImage(data, 'PNG', x, y, w, h);
-            URL.revokeObjectURL(img.src);
-          }
-          resultBlob = pdf.output('blob');
-          fileName = `图片合并_${Date.now()}.pdf`;
+      // ================= 工具函数 =================
+      const $ = (id) => document.getElementById(id);
+      const setStatus = (msg) => $('statusText').textContent = msg;
+      
+      const clearBlob = () => {
+        if (state.activeBlob) {
+          URL.revokeObjectURL(state.activeBlob);
+          state.activeBlob = null;
         }
-        showDownload(document.getElementById('pdfDownloadLink'), resultBlob, fileName);
-        setStatus('pdf','✅ 完成');
-      } catch (e) { setStatus('pdf',`❌ ${e.message}`); } finally { isConverting=false; setButtonsDisabled(false); }
-    });
+        // 隐藏所有下载链接
+        ['img-down','vid-down','aud-down','doc-down','pdf-down'].forEach(id => $(id).classList.add('hidden'));
+      };
 
-    // 初始化
-    window.addEventListener('DOMContentLoaded', () => {
-      checkCompat();
-      loadAllLibraries();
-      document.getElementById('imageFormat').dispatchEvent(new Event('change'));
-    });
-    retryBtn.addEventListener('click', () => {
-      // 重置库状态并重新加载
-      LIBRARIES.forEach(l => { libStatus[l.name] = { loaded: false, attempted: false, failed: false }; });
-      loadAllLibraries();
-    });
+      const triggerDownload = (linkEl, blob, filename) => {
+        clearBlob();
+        const url = URL.createObjectURL(blob);
+        state.activeBlob = url;
+        linkEl.href = url;
+        linkEl.download = filename;
+        linkEl.parentElement.classList.remove('hidden');
+      };
 
-  })();
-</script>
+      // 动态加载脚本
+      const loadScript = (src) => {
+        return new Promise((res, rej) => {
+          const s = document.createElement('script');
+          s.src = src;
+          s.onload = () => res();
+          s.onerror = () => rej(new Error(`Failed to load ${src}`));
+          document.head.appendChild(s);
+        });
+      };
+
+      // 确保库加载
+      const ensureLib = async (name) => {
+        if (state.loaded[name]) return true;
+        const lib = LIBS[name];
+        if (!lib) return false;
+
+        setStatus(`正在加载依赖库: ${name}...`);
+        for (const url of lib.urls) {
+          try {
+            await loadScript(url);
+            if (window[lib.var]) {
+              if (lib.init) lib.init();
+              state.loaded[name] = true;
+              updateMiniStatus();
+              return true;
+            }
+          } catch (e) { console.warn(e); }
+        }
+        setStatus(`错误: 无法加载库 ${name}`);
+        return false;
+      };
+
+      // 初始化 FFmpeg
+      const initFFmpeg = async () => {
+        if (state.ffmpegReady) return true;
+        if (!(await ensureLib('ffmpeg'))) return false;
+        
+        setStatus("正在初始化 FFmpeg (约30MB)...");
+        try {
+          const { createFFmpeg, fetchFile } = FFmpeg;
+          state.ffmpeg = createFFmpeg({ log: false, corePath: LIBS.ffmpeg.core });
+          await state.ffmpeg.load();
+          state.ffmpegReady = true;
+          state.fetchFile = fetchFile;
+          updateMiniStatus();
+          return true;
+        } catch (e) {
+          setStatus("FFmpeg 初始化失败");
+          return false;
+        }
+      };
+
+      // 更新右上角小状态
+      const updateMiniStatus = () => {
+        const container = $('miniLibStatus');
+        container.innerHTML = '';
+        // 只显示几个关键库
+        const checks = [
+          { id: 'xlsx', label: 'Excel' },
+          { id: 'ffmpeg', label: 'FFmpeg', ready: () => state.ffmpegReady }
+        ];
+        
+        checks.forEach(c => {
+          const div = document.createElement('div');
+          div.className = 'flex items-center';
+          const dot = document.createElement('span');
+          
+          let isReady = state.loaded[c.id];
+          if (c.ready) isReady = c.ready();
+
+          dot.className = `lib-dot ${isReady ? 'dot-success' : 'dot-idle'}`;
+          div.appendChild(dot);
+          div.appendChild(document.createTextNode(c.label));
+          container.appendChild(div);
+        });
+      };
+
+      // ================= Tab 切换 =================
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          // UI 更新
+          document.querySelectorAll('.tab-btn').forEach(b => {
+            b.classList.remove('border-blue-600', 'text-blue-600');
+            b.classList.add('border-transparent', 'text-gray-500');
+          });
+          btn.classList.add('border-blue-600', 'text-blue-600');
+          btn.classList.remove('border-transparent', 'text-gray-500');
+
+          // 面板切换
+          const tab = btn.dataset.tab;
+          document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden-tab'));
+          $(`panel-${tab}`).classList.remove('hidden-tab');
+          clearBlob();
+          setStatus("就绪");
+        });
+      });
+
+      // ================= 功能实现 =================
+
+      // 1. 图片转换
+      $('img-btn').addEventListener('click', async () => {
+        if (state.busy) return;
+        const file = $('img-input').files[0];
+        if (!file) return setStatus("请先选择图片");
+        
+        state.busy = true;
+        setStatus("处理中...");
+        clearBlob();
+
+        try {
+          const img = new Image();
+          img.src = URL.createObjectURL(file);
+          await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          canvas.getContext('2d').drawImage(img, 0, 0);
+          URL.revokeObjectURL(img.src);
+
+          const fmt = $('img-format').value;
+          const quality = parseFloat($('img-quality').value);
+          const blob = await new Promise(res => canvas.toBlob(res, `image/${fmt}`, quality));
+          
+          const newName = file.name.replace(/\.[^\.]+$/, `.${fmt}`);
+          triggerDownload($('img-link'), blob, newName);
+          setStatus("转换完成");
+        } catch (e) {
+          setStatus("转换失败: " + e.message);
+        } finally {
+          state.busy = false;
+        }
+      });
+
+      // 通用 FFmpeg 处理
+      const runFFmpeg = async (file, ext, args, outName, mime) => {
+        if (!(await initFFmpeg())) return;
+        const { ffmpeg, fetchFile } = state;
+        
+        const inName = `input.${ext}`;
+        ffmpeg.FS('writeFile', inName, await fetchFile(file));
+        await ffmpeg.run(...args);
+        
+        const data = ffmpeg.FS('readFile', outName);
+        // 清理
+        try { ffmpeg.FS('unlink', inName); ffmpeg.FS('unlink', outName); } catch(e){}
+        return new Blob([data.buffer], { type: mime });
+      };
+
+      // 2. 视频转换
+      $('vid-btn').addEventListener('click', async () => {
+        if (state.busy) return;
+        const file = $('vid-input').files[0];
+        if (!file) return setStatus("请先选择视频");
+        
+        state.busy = true;
+        setStatus("准备中...");
+        clearBlob();
+
+        try {
+          const fmt = $('vid-format').value;
+          const ext = file.name.split('.').pop();
+          const outFile = 'output.' + (fmt === 'mp3' ? 'mp3' : fmt);
+          const mime = fmt === 'mp3' ? 'audio/mpeg' : `video/${fmt}`;
+          
+          let args = ['-i', 'input.' + ext];
+          if (fmt === 'gif') {
+             args = args.concat(['-t', '10', '-vf', 'fps=10,scale=480:-1', '-f', 'gif']); // 默认只转10秒防止太大
+          } else if (fmt === 'mp3') {
+             args = args.concat(['-vn', '-acodec', 'libmp3lame', '-ab', '192k']);
+          } else if (fmt === 'webm') {
+             args = args.concat(['-c:v', 'libvpx', '-b:v', '1M', '-c:a', 'libvorbis']);
+          }
+          args.push(outFile);
+
+          setStatus("正在转换 (这可能需要几分钟)...");
+          const blob = await runFFmpeg(file, ext, args, outFile, mime);
+          
+          triggerDownload($('vid-link'), blob, file.name.replace(/\.[^\.]+$/, `.${fmt}`));
+          setStatus("转换完成");
+        } catch (e) {
+          setStatus("失败: " + e.message);
+        } finally {
+          state.busy = false;
+        }
+      });
+
+      // 3. 音频转换
+      $('aud-btn').addEventListener('click', async () => {
+        if (state.busy) return;
+        const file = $('aud-input').files[0];
+        if (!file) return setStatus("请先选择音频");
+        
+        state.busy = true;
+        setStatus("准备中...");
+        clearBlob();
+
+        try {
+          const fmt = $('aud-format').value;
+          const ext = file.name.split('.').pop();
+          const outFile = 'output.' + fmt;
+          const mimeMap = { mp3: 'audio/mpeg', wav: 'audio/wav', flac: 'audio/flac', m4a: 'audio/mp4' };
+          
+          let args = ['-i', 'input.' + ext];
+          if (fmt === 'mp3') args.push('-acodec', 'libmp3lame', '-ab', '320k');
+          else if (fmt === 'wav') args.push('-acodec', 'pcm_s16le');
+          else if (fmt === 'flac') args.push('-acodec', 'flac');
+          else if (fmt === 'm4a') args.push('-acodec', 'aac', '-ab', '320k', '-f', 'mp4');
+          args.push(outFile);
+
+          setStatus("正在转换...");
+          const blob = await runFFmpeg(file, ext, args, outFile, mimeMap[fmt] || 'audio/octet-stream');
+          
+          triggerDownload($('aud-link'), blob, file.name.replace(/\.[^\.]+$/, `.${fmt}`));
+          setStatus("转换完成");
+        } catch (e) {
+          setStatus("失败: " + e.message);
+        } finally {
+          state.busy = false;
+        }
+      });
+
+      // 简易 HTML 转 PDF (图片方式，保证样式)
+      const htmlToPdf = async (htmlStr) => {
+        if (!(await ensureLib('jspdf'))) return;
+        const { jsPDF } = jspdf;
+        
+        // 临时渲染
+        const container = document.createElement('div');
+        container.innerHTML = htmlStr;
+        container.style.position = 'absolute';
+        container.style.left = '-10000px';
+        container.style.top = '0';
+        container.style.background = 'white';
+        container.style.padding = '20px';
+        document.body.appendChild(container);
+
+        // 这里为了轻量化，使用简单的分页逻辑，如果是复杂文档建议用 html2canvas，但为了减少依赖，这里假设是纯文本/表格
+        // 为了稳定性，我们还是用最基础的文本方式处理Docx，Excel用表格绘制
+        // 上面的渲染只是为了获取文本，这里简化处理：
+        const text = container.innerText;
+        document.body.removeChild(container);
+
+        const pdf = new jsPDF();
+        const lines = pdf.splitTextToSize(text, 180);
+        pdf.text(lines, 14, 20);
+        return pdf.output('blob');
+      };
+
+      // 4. 文档转换
+      $('doc-btn').addEventListener('click', async () => {
+        if (state.busy) return;
+        const file = $('doc-input').files[0];
+        if (!file) return setStatus("请先选择文档");
+        
+        state.busy = true;
+        setStatus("处理中...");
+        clearBlob();
+
+        const ext = file.name.split('.').pop().toLowerCase();
+        const target = $('doc-format').value;
+        let blob = null;
+        let filename = file.name.replace(/\.[^\.]+$/, `.${target}`);
+
+        try {
+          const buf = await file.arrayBuffer();
+
+          if (ext === 'xlsx') {
+            if (!(await ensureLib('xlsx'))) return;
+            const wb = XLSX.read(buf);
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            
+            if (target === 'json') {
+              const json = XLSX.utils.sheet_to_json(ws);
+              blob = new Blob([JSON.stringify(json, null, 2)], {type: 'application/json'});
+            } else if (target === 'pdf') {
+               if (!(await ensureLib('jspdf'))) return;
+               const csv = XLSX.utils.sheet_to_csv(ws);
+               // 简单CSV转PDF
+               const { jsPDF } = jspdf;
+               const pdf = new jsPDF();
+               pdf.setFontSize(10);
+               const lines = pdf.splitTextToSize(csv, 280);
+               pdf.text(lines, 10, 10);
+               blob = pdf.output('blob');
+            } else {
+               const csv = XLSX.utils.sheet_to_csv(ws);
+               blob = new Blob(['\ufeff' + csv], {type: 'text/csv'});
+               filename = filename.replace('.pdf', '.csv').replace('.html', '.csv');
+            }
+          } 
+          else if (ext === 'docx') {
+            if (!(await ensureLib('mammoth'))) return;
+            const result = await mammoth.convertToHtml({ arrayBuffer: buf });
+            const html = result.value;
+            
+            if (target === 'html') {
+              blob = new Blob([html], {type: 'text/html'});
+            } else if (target === 'pdf') {
+               blob = await htmlToPdf(html);
+            } else {
+               const d = document.createElement('div'); d.innerHTML = html;
+               blob = new Blob([d.innerText], {type: 'text/plain'});
+            }
+          }
+          else if (ext === 'md' || ext === 'txt') {
+             const text = await file.text();
+             if (target === 'pdf') {
+                blob = await htmlToPdf(`<pre>${text}</pre>`);
+             } else {
+                blob = new Blob([text], {type: 'text/plain'});
+             }
+          }
+
+          if (blob) {
+            triggerDownload($('doc-link'), blob, filename);
+            setStatus("转换完成");
+          } else {
+            setStatus("不支持的转换格式");
+          }
+        } catch (e) {
+          setStatus("失败: " + e.message);
+        } finally {
+          state.busy = false;
+        }
+      });
+
+      // 5. PDF 处理
+      $('pdf-btn').addEventListener('click', async () => {
+        if (state.busy) return;
+        const files = Array.from($('pdf-input').files);
+        if (files.length === 0) return setStatus("请先选择文件");
+        
+        state.busy = true;
+        setStatus("处理中...");
+        clearBlob();
+
+        const action = $('pdf-action').value;
+        let blob = null;
+        let filename = "output";
+
+        try {
+          if (action === 'merge') {
+            if (!(await ensureLib('jspdf'))) return;
+            const { jsPDF } = jspdf;
+            const pdf = new jsPDF();
+            const imgs = files.filter(f => f.type.startsWith('image'));
+            
+            for(let i=0; i<imgs.length; i++) {
+              setStatus(`添加图片 ${i+1}/${imgs.length}`);
+              const url = URL.createObjectURL(imgs[i]);
+              const img = new Image();
+              img.src = url;
+              await new Promise(r => img.onload = r);
+              
+              if(i>0) pdf.addPage();
+              const pw = pdf.internal.pageSize.getWidth();
+              const ph = pdf.internal.pageSize.getHeight();
+              const ratio = Math.min(pw/img.width, ph/img.height) * 0.9;
+              const w = img.width * ratio;
+              const h = img.height * ratio;
+              pdf.addImage(img, 'PNG', (pw-w)/2, (ph-h)/2, w, h);
+              URL.revokeObjectURL(url);
+            }
+            blob = pdf.output('blob');
+            filename = "合并.pdf";
+          } 
+          else {
+            const pdfFile = files.find(f => f.type === 'application/pdf');
+            if (!pdfFile) throw new Error("请选择PDF文件");
+            
+            if (!(await ensureLib('pdfjs'))) return;
+            if (action === 'to-img') await ensureLib('jszip');
+
+            const buf = await pdfFile.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument(buf).promise;
+
+            if (action === 'to-txt') {
+              let text = "";
+              for(let i=1; i<=pdf.numPages; i++) {
+                setStatus(`提取文本 ${i}/${pdf.numPages}`);
+                const page = await pdf.getPage(i);
+                const content = await page.getTextContent();
+                text += `--- Page ${i} ---\n`;
+                text += content.items.map(it => it.str).join(' ') + "\n";
+              }
+              blob = new Blob([text], {type: 'text/plain'});
+              filename = pdfFile.name.replace('.pdf', '.txt');
+            } 
+            else if (action === 'to-img') {
+              const zip = new JSZip();
+              const maxPages = Math.min(pdf.numPages, 50); // 限制50页
+              for(let i=1; i<=maxPages; i++) {
+                setStatus(`渲染图片 ${i}/${maxPages}`);
+                const page = await pdf.getPage(i);
+                const scale = 2;
+                const viewport = page.getViewport({scale});
+                const canvas = document.createElement('canvas');
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+                await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
+                
+                const imgBlob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+                zip.file(`page_${i}.png`, imgBlob);
+              }
+              blob = await zip.generateAsync({type: 'blob'});
+              filename = pdfFile.name.replace('.pdf', '_images.zip');
+            }
+          }
+
+          if (blob) {
+            triggerDownload($('pdf-link'), blob, filename);
+            setStatus("处理完成");
+          }
+        } catch (e) {
+          setStatus("失败: " + e.message);
+        } finally {
+          state.busy = false;
+        }
+      });
+
+      // 初始化
+      updateMiniStatus();
+      setStatus("就绪");
+
+    })();
+  </script>
 </body>
 </html>
