@@ -1,14 +1,14 @@
 # 本地文件转换工具
 
-纯静态网站，文件在浏览器内转换，无后端、无文件上传。界面样式本地提供；Office、PDF 和音视频引擎按需从 CDN 加载，需要联网。当前没有 PWA 或完整离线支持。
+纯静态网站，文件在浏览器内转换，无后端、无文件上传。图片、Office、Markdown、PDF 所需脚本随站点分发；音视频转换按需下载 FFmpeg 核心，并校验 SHA-256。当前没有 PWA 或完整离线支持。
 
 ## 支持范围
 
 | 功能 | 输入 | 输出与限制 |
 | --- | --- | --- |
 | 图片 | 浏览器可解码的图片 | JPG、PNG、WebP；JPG 使用白色背景；动画只取首帧 |
-| 视频 | FFmpeg 可解码的视频 | MP4 / WebM、提取 MP3、前 10 秒 GIF |
-| 音频 | FFmpeg 可解码的音频 | MP3、WAV、FLAC、M4A |
+| 视频（实验功能） | FFmpeg 可解码的视频 | MP4 / WebM、提取 MP3、前 10 秒 GIF |
+| 音频（实验功能） | FFmpeg 可解码的音频 | MP3、WAV、FLAC、M4A |
 | Excel | XLSX | 首个工作表转 JSON、CSV、TXT、HTML、PDF |
 | 文档 | DOCX、Markdown、TXT | TXT、HTML、PDF；不生成 Word 文件 |
 | PDF | 单个 PDF | 文本提取、各页 PNG 打包 ZIP（最多 50 页） |
@@ -16,7 +16,9 @@
 
 单个图片/文档/PDF 最多 30 MB，音视频最多 200 MB，总选择大小最多 200 MB；图片最多 4000 万像素。转换后的大小与速度取决于浏览器和设备。
 
-文档 PDF 使用图片分页以显示中文，文字不可搜索或复制；复杂 Office 排版不保证还原，分页可能切断行。超长文档建议导出 HTML 后使用浏览器打印为 PDF。扫描版 PDF 提取文字不包含 OCR。输入损坏、加密或编码不支持时会显示错误。
+DOCX 转 HTML / PDF 会省略图片、链接和复杂排版。文档 PDF 使用图片分页以显示中文，文字不可搜索或复制，分页可能切断行。超长文档建议导出 HTML 后使用浏览器打印为 PDF。扫描版 PDF 提取文字不包含 OCR，完全无文字时会明确报错。TXT / Markdown 按 UTF-8 读取。输入损坏、加密或编码不支持时会显示错误。
+
+依赖加载失败后可点击「重试本次操作」，无需刷新页面。音视频转码约两分钟超时后会释放引擎；体积上限不保证所有设备都能处理大文件。完整说明见 [处理范围与隐私说明](privacy.html)。
 
 ## 本地运行
 
@@ -30,7 +32,13 @@ python -m http.server 8080
 
 ## 部署
 
-将整个目录（包含 `vendor/ffmpeg`）上传到 GitHub Pages、Cloudflare Pages 或其他静态托管平台，无构建步骤。FFmpeg 使用单线程核心，不要求 COOP/COEP 响应头。首次转换需下载约 30 MB 核心。
+开发目录可直接运行。正式发布建议生成只包含网站资源的 `dist` 目录：
+
+```sh
+npm run build
+```
+
+构建只使用 Node 内置模块，不依赖测试包。将 `dist` 上传到静态托管平台，无需后端。FFmpeg 使用单线程核心，不要求 COOP/COEP 响应头。首次转换需下载约 30 MB 核心；WASM 保留在外部 CDN，不加入发布目录。构建会检查依赖文件 SHA-256 和单文件大小。
 
 ### Cloudflare Pages 连接 GitHub
 
@@ -40,21 +48,33 @@ python -m http.server 8080
 | --- | --- |
 | 生产分支 | `main` |
 | 框架预设 | `None` |
-| 构建命令 | `exit 0` |
-| 构建输出目录 | `.` |
+| 构建命令 | `npm run build` |
+| 构建输出目录 | `dist` |
 | 根目录 | 留空（仓库根目录） |
 
-无需环境变量或服务端。部署后检查图片转换、文档转换以及音视频引擎加载；CDN 无法访问时，对应功能会提示错误。关联 GitHub 后，推送到生产分支会触发自动部署。
+无需应用密钥或服务端。已使用旧配置 `exit 0` / `.` 的项目应改为上述设置，避免发布测试代码和安装目录。部署后检查图片转换、文档转换以及音视频引擎加载；CDN 无法访问时，对应功能会提示错误。关联 GitHub 后，推送到生产分支会触发自动部署。
 
 参考：[Cloudflare 静态 HTML 部署文档](https://developers.cloudflare.com/pages/framework-guides/deploy-anything/)。
 
 `vendor/ffmpeg` 中的两个脚本来自 `@ffmpeg/ffmpeg@0.12.10`，必须保留在同一目录。包装库采用 MIT 许可证，见随附 LICENSE；FFmpeg 核心及编解码器有各自的许可证，发行时需自行核对。
 
+全部依赖的固定版本、来源和许可证见 [vendor/manifest.json](vendor/manifest.json)，文件校验值见 [vendor/checksums.json](vendor/checksums.json)。维护者可使用 `scripts/download-vendor.ps1` 获取缺失依赖；更新版本需重新评审并运行全部测试后更新校验值。
+
 ## 验证
 
 ```sh
-node --check app.js
-node --test tests/app.test.cjs
+npm ci
+npm run check
+npm test
+npm run vendor:check
+node scripts/cache-core.cjs
+npm run test:e2e
 ```
 
-自动测试覆盖文件校验、HTML 转义、下载命名和 FFmpeg 失败清理。CDN 可用性和实际编解码需在浏览器中验证。
+需要 Node.js 24 和已安装的 Chrome。Windows 下载测试核心可改用 `powershell -File scripts/cache-core.ps1`。测试缓存位于 `.test-cache`，不会提交或发布。
+
+Chrome 测试直接访问 `dist` 发布目录，使用真实 PNG、XLSX、DOCX、中文 Markdown / TXT、PDF、WAV 和一秒合成视频，验证输出可以重新解码或渲染，以及损坏文件、依赖失败和重试。音视频测试用已校验的缓存响应 CDN 请求，不依赖每次实时下载；上线后的 CDN 连通性需要另行冒烟验证。
+
+GitHub Actions 配置见 `.github/workflows/verify.yml`，失败时保存浏览器截图和 trace。测试样本是合成文件，不能代表所有复杂排版、编码、大文件和移动设备。
+
+阶段规划见 [docs/ROADMAP.md](docs/ROADMAP.md)。

@@ -1,39 +1,43 @@
     (function() {
       // ================= 配置与状态 =================
       const LIBS = {
-        html2canvas: { var: 'html2canvas', urls: ['https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js'] },
-        purify: { var: 'DOMPurify', urls: ['https://cdn.jsdelivr.net/npm/dompurify@3.2.7/dist/purify.min.js'] },
-        marked: { var: 'marked', urls: ['https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js'] },
+        html2canvas: { var: 'html2canvas', urls: ['vendor/html2canvas/html2canvas.min.js'] },
+        purify: { var: 'DOMPurify', urls: ['vendor/dompurify/purify.min.js'] },
+        marked: { var: 'marked', urls: ['vendor/marked/marked.min.js'] },
         xlsx: {
           var: 'XLSX',
-          urls: ['https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js']
+          urls: ['vendor/xlsx/xlsx.full.min.js']
         },
         mammoth: {
           var: 'mammoth',
-          urls: ['https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js']
+          urls: ['vendor/mammoth/mammoth.browser.min.js']
         },
         jspdf: {
           var: 'jspdf',
-          urls: ['https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js']
+          urls: ['vendor/jspdf/jspdf.umd.min.js']
         },
         pdfjs: {
           var: 'pdfjsLib',
-          urls: ['https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'],
-          init: () => { if(window.pdfjsLib) window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }
+          module: true,
+          urls: ['./vendor/pdfjs/pdf.min.mjs'],
+          init: () => { if(window.pdfjsLib) window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdfjs/pdf.worker.min.mjs'; }
         },
         jszip: {
           var: 'JSZip',
-          urls: ['https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js']
+          urls: ['vendor/jszip/jszip.min.js']
         },
         ffmpeg: {
           var: 'FFmpegWASM',
           urls: ['vendor/ffmpeg/ffmpeg.js'],
+          integrity: {"text/javascript": "a34873964b0f62aec516bac75e3aa9086ec3535d4d07f0269aa94ea748b6cb71", "application/wasm": "2390efa7fb66e7e42dbae15427571a5ffc96b829480904c30f471f0a78967f61"},
           core: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js'
         }
       };
 
       const state = {
         loaded: {},
+        dependencyStatus: {},
+        lastAction: null,
         ffmpeg: null,
         ffmpegReady: false,
         _busy: false,
@@ -48,7 +52,12 @@
 
       // ================= 工具函数 =================
       const $ = (id) => document.getElementById(id);
-      const setStatus = (msg) => $('statusText').textContent = msg;
+      const setStatus = msg => {
+        $('statusText').textContent = msg;
+        const failure = /失败|错误|超时/.test(msg);
+        $('statusText').setAttribute('role', failure ? 'alert' : 'status');
+        $('retry-btn').classList.toggle('hidden', !failure || !state.lastAction);
+      };
       
       const clearBlob = () => {
         if (state.activeBlob) {
@@ -69,39 +78,22 @@
         linkEl.parentElement.classList.remove('hidden');
       };
 
-      // 动态加载脚本
-      const loadScript = (src) => {
-        return new Promise((res, rej) => {
-          const s = document.createElement('script');
-          s.src = src;
-          const timer = setTimeout(() => { s.remove(); rej(new Error('依赖加载超时')); }, 30000);
-          s.onload = () => { clearTimeout(timer); res(); };
-          s.onerror = () => { clearTimeout(timer); s.remove(); rej(new Error(`Failed to load ${src}`)); };
-          document.head.appendChild(s);
-        });
-      };
-
-      // 确保库加载
-      const ensureLib = async (name) => {
-        if (state.loaded[name]) return true;
-        const lib = LIBS[name];
-        if (!lib) throw new Error('未知依赖库');
-
-        setStatus(`正在加载依赖库: ${name}...`);
-        for (const url of lib.urls) {
-          try {
-            await loadScript(url);
-            if (window[lib.var]) {
-              if (lib.init) lib.init();
-              state.loaded[name] = true;
-              updateMiniStatus();
-              return true;
-            }
-          } catch (e) { console.warn(e); }
+      const { withTimeout, fetchBytes, createLoader } = ConversionRuntime;
+      const loader = createLoader(LIBS, {
+        onState: (name, status) => {
+          state.dependencyStatus[name] = status;
+          state.loaded[name] = status === 'success';
+          if (status === 'loading') setStatus(`正在加载 ${name}...`);
+          updateMiniStatus();
         }
-        setStatus(`错误: 无法加载库 ${name}`);
-        throw new Error(`无法加载 ${name}，请检查网络后重试`);
-      };
+      });
+      const ensureLib = name => loader.ensure(name);
+      ['img','vid','aud','doc','pdf'].forEach(prefix => {
+        $(`${prefix}-btn`).addEventListener('click', () => { state.lastAction = `${prefix}-btn`; });
+      });
+      $('retry-btn').addEventListener('click', () => {
+        if (!state.busy && state.lastAction) $(state.lastAction).click();
+      });
 
       // 初始化 FFmpeg
       const initFFmpeg = async () => {
@@ -109,30 +101,34 @@
         if (!(await ensureLib('ffmpeg'))) return false;
         
         setStatus("正在初始化 FFmpeg (约30MB)...");
+        state.dependencyStatus.ffmpeg = 'loading';
+        updateMiniStatus();
         try {
           state.ffmpeg = new FFmpegWASM.FFmpeg();
           const urls = [];
           try {
             const asBlob = async (url, type) => {
-              const response = await fetch(url);
-              if (!response.ok) throw new Error('引擎下载失败');
-              const blobURL = URL.createObjectURL(new Blob([await response.arrayBuffer()], { type }));
+              const blobURL = URL.createObjectURL(new Blob([await fetchBytes(url, 60000, LIBS.ffmpeg.integrity[type])], { type }));
               urls.push(blobURL);
               return blobURL;
             };
-            await state.ffmpeg.load({
+            await withTimeout(state.ffmpeg.load({
               coreURL: await asBlob(LIBS.ffmpeg.core, 'text/javascript'),
-              wasmURL: await asBlob(LIBS.ffmpeg.core.replace('.js', '.wasm'), 'application/wasm')
-            });
+              wasmURL: await asBlob(LIBS.ffmpeg.core.replace(/\.js$/, '.wasm'), 'application/wasm')
+            }), 45000, '引擎初始化超时', () => state.ffmpeg?.terminate());
           } finally { urls.forEach(url => URL.revokeObjectURL(url)); }
           state.ffmpegReady = true;
+          state.dependencyStatus.ffmpeg = 'success';
           state.fetchFile = async file => new Uint8Array(await file.arrayBuffer());
           updateMiniStatus();
           return true;
         } catch (e) {
           state.ffmpeg?.terminate();
           state.ffmpeg = null;
-          throw new Error('FFmpeg 初始化失败，请检查网络或刷新后重试');
+          state.ffmpegReady = false;
+          state.dependencyStatus.ffmpeg = 'error';
+          updateMiniStatus();
+          throw new Error(`FFmpeg 初始化失败：${e?.message || e}，可点击重试`);
         }
       };
 
@@ -143,6 +139,7 @@
         // 只显示几个关键库
         const checks = [
           { id: 'xlsx', label: 'Excel' },
+          { id: 'pdfjs', label: 'PDF' },
           { id: 'ffmpeg', label: 'FFmpeg', ready: () => state.ffmpegReady }
         ];
         
@@ -154,7 +151,9 @@
           let isReady = state.loaded[c.id];
           if (c.ready) isReady = c.ready();
 
-          dot.className = `lib-dot ${isReady ? 'dot-success' : 'dot-idle'}`;
+          const status = isReady ? 'success' : (c.id === 'ffmpeg' && state.dependencyStatus[c.id] === 'success' ? 'idle' : state.dependencyStatus[c.id] || 'idle');
+          dot.className = `lib-dot dot-${status}`;
+          div.title = { idle: '尚未加载', loading: '加载中', success: '已就绪', error: '加载失败，可重试' }[status];
           div.appendChild(dot);
           div.appendChild(document.createTextNode(c.label));
           container.appendChild(div);
@@ -166,11 +165,11 @@
       const loadImage = async (img, file) => {
         const url = URL.createObjectURL(file);
         try {
-          await new Promise((resolve, reject) => {
+          await withTimeout(new Promise((resolve, reject) => {
             img.onload = resolve;
             img.onerror = () => reject(new Error('图片无法解码，请选择有效图片'));
             img.src = url;
-          });
+          }), 15000, '图片解码超时，请选择较小图片');
           if (img.naturalWidth * img.naturalHeight > 40000000) throw new Error('图片超过 4000 万像素');
         } finally { URL.revokeObjectURL(url); }
       };
@@ -260,13 +259,22 @@
         
         const inName = `input.${ext}`;
         try {
-          await ffmpeg.writeFile(inName, await fetchFile(file));
-          const code = await ffmpeg.exec(args);
+          await withTimeout(ffmpeg.writeFile(inName, await fetchFile(file)), 15000, '写入引擎超时', () => { ffmpeg.terminate(); state.ffmpegReady = false; });
+          const code = await withTimeout(ffmpeg.exec(args, 120000), 125000, '转换超时，请尝试更短的文件', () => {
+            ffmpeg.terminate(); state.ffmpegReady = false;
+          });
           if (code !== 0) throw new Error('转换失败，文件损坏或编码不受支持');
-          const data = await ffmpeg.readFile(outName);
+          const data = await withTimeout(ffmpeg.readFile(outName), 15000, '读取结果超时', () => { ffmpeg.terminate(); state.ffmpegReady = false; });
           return new Blob([data], { type: mime });
         } finally {
-          await Promise.allSettled([ffmpeg.deleteFile(inName), ffmpeg.deleteFile(outName)]);
+          if (state.ffmpegReady) {
+            const cleanup = await Promise.allSettled([inName, outName].map(name =>
+              withTimeout(ffmpeg.deleteFile(name), 3000, '清理超时')));
+            if (cleanup.some(result => result.status === 'rejected')) {
+              ffmpeg.terminate(); state.ffmpegReady = false;
+            }
+          }
+          updateMiniStatus();
         }
       };
 
@@ -422,6 +430,10 @@
           } 
           else if (ext === 'docx') {
             if (!(await ensureLib('mammoth'))) return;
+            if (target === 'txt') {
+              const raw = await mammoth.extractRawText({ arrayBuffer: buf });
+              blob = new Blob([raw.value], {type: 'text/plain;charset=utf-8'});
+            } else {
             const result = await mammoth.convertToHtml({ arrayBuffer: buf });
             const html = await sanitize(result.value);
             
@@ -429,15 +441,13 @@
               blob = new Blob([htmlDocument(html)], {type: 'text/html;charset=utf-8'});
             } else if (target === 'pdf') {
                blob = await htmlToPdf(html);
-            } else {
-               const raw = await mammoth.extractRawText({ arrayBuffer: buf });
-               blob = new Blob([raw.value], {type: 'text/plain;charset=utf-8'});
+            }
             }
           }
           else if (ext === 'md' || ext === 'txt') {
              const text = await file.text();
              let html = `<pre>${escapeHTML(text)}</pre>`;
-             if (ext === 'md') { await ensureLib('marked'); html = await sanitize(marked.parse(text)); }
+             if (ext === 'md' && target !== 'txt') { await ensureLib('marked'); html = await sanitize(marked.parse(text)); }
              if (target === 'pdf') {
                 blob = await htmlToPdf(html);
              } else if (target === 'html') {
@@ -511,18 +521,23 @@
             if (action === 'to-img') await ensureLib('jszip');
 
             const buf = await pdfFile.arrayBuffer();
-            const pdf = await pdfjsLib.getDocument({data: buf, isEvalSupported: false}).promise;
+            const loadingTask = pdfjsLib.getDocument({data: buf, isEvalSupported: false});
             try {
+            const pdf = await loadingTask.promise;
 
             if (action === 'to-txt') {
               let text = "";
+              let characters = 0;
               for(let i=1; i<=pdf.numPages; i++) {
                 setStatus(`提取文本 ${i}/${pdf.numPages}`);
                 const page = await pdf.getPage(i);
                 const content = await page.getTextContent();
+                characters += content.items.reduce((count, item) => count + (item.str || '').trim().length, 0);
                 text += `--- Page ${i} ---\n`;
-                text += content.items.map(it => it.str).join(' ') + "\n";
+                text += content.items.map(it => it.str + (it.hasEOL ? '\n' : ' ')).join('') + '\n';
+                page.cleanup();
               }
+              if (!characters) throw new Error('未提取到文字：文件可能是扫描版，本工具不提供 OCR');
               blob = new Blob([text], {type: 'text/plain'});
               filename = outputName(pdfFile.name, 'txt');
             } 
@@ -550,7 +565,7 @@
               blob = await zip.generateAsync({type: 'blob'});
               filename = outputName(pdfFile.name, 'zip');
             }
-            } finally { await pdf.destroy(); }
+            } finally { await loadingTask.destroy(); }
           }
 
           if (blob) {

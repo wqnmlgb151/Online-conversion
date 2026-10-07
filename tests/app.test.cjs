@@ -8,7 +8,7 @@ function setup() {
   const el = id => {
     if (!elements.has(id)) elements.set(id, {
       files: [], value: '', textContent: '', options: [], selectedOptions: [{ disabled: false }],
-      classList: { add() {}, remove() {} }, parentElement: { classList: { remove() {} } },
+      classList: { add() {}, remove() {}, toggle() {} }, parentElement: { classList: { remove() {} } },
       listeners: {}, addEventListener(type, fn) { this.listeners[type] = fn; },
       appendChild() {}, setAttribute() {}
     });
@@ -23,6 +23,7 @@ function setup() {
       querySelectorAll: selector => selector === 'input[type=file]' ? inputs : []
     },
     window: { addEventListener() {} }, Blob, URL, console, setTimeout, clearTimeout,
+    ConversionRuntime: require('../runtime.js'),
     Image: class { set src(value) { this.onerror(); } }
   };
   const source = fs.readFileSync('app.js', 'utf8').replace('    })();',
@@ -75,8 +76,15 @@ test('FFmpeg failure propagates and cleans both virtual files', async () => {
 });
 
 test('image decoding errors release the source URL', async () => {
-  const { api, Image } = setup();
-  await assert.rejects(api.loadImage(new Image(), new Blob(['broken'])), /图片无法解码/);
+  const original = URL.revokeObjectURL;
+  const released = [];
+  URL.revokeObjectURL = value => { released.push(value); original.call(URL, value); };
+  try {
+    const { api, Image } = setup();
+    await assert.rejects(api.loadImage(new Image(), new Blob(['broken'])), /图片无法解码/);
+    assert.equal(released.length, 1);
+    assert.match(released[0], /^blob:/);
+  } finally { URL.revokeObjectURL = original; }
 });
 
 test('non Excel files cannot be exported as fake JSON', async () => {

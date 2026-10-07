@@ -32,6 +32,7 @@
     <div id="statusBar" class="mb-6 p-3 bg-white rounded-lg shadow-sm border border-gray-200 flex justify-between items-center text-sm">
       <div id="statusText" role="status" aria-live="polite">就绪</div>
       <div id="miniLibStatus" class="flex gap-4"></div>
+      <button id="retry-btn" class="hidden" type="button">重试本次操作</button>
     </div>
 
     <!-- Tab 导航 -->
@@ -72,7 +73,7 @@
 
     <!-- 视频转换 -->
     <section id="panel-video" class="tab-panel hidden-tab bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-      <h2 class="text-lg font-semibold mb-4">视频格式转换 (FFmpeg)</h2>
+      <h2 class="text-lg font-semibold mb-4">视频格式转换（实验功能）</h2>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div class="md:col-span-2">
           <label class="block text-sm font-medium text-gray-700 mb-1">选择文件</label>
@@ -97,7 +98,7 @@
 
     <!-- 音频转换 -->
     <section id="panel-audio" class="tab-panel hidden-tab bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-      <h2 class="text-lg font-semibold mb-4">音频格式转换</h2>
+      <h2 class="text-lg font-semibold mb-4">音频格式转换（实验功能）</h2>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div class="md:col-span-2">
           <label class="block text-sm font-medium text-gray-700 mb-1">选择文件</label>
@@ -121,7 +122,8 @@
 
     <!-- 文档转换 -->
     <section id="panel-doc" class="tab-panel hidden-tab bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-      <h2 class="text-lg font-semibold mb-4">Office/Markdown 转换</h2>
+      <h2 class="text-lg font-semibold mb-4">Office 内容提取 / Markdown 转换</h2>
+      <p>DOCX 转 HTML / PDF 会省略图片、链接及复杂排版；PDF 为图片分页。请选择 TXT 或 HTML 保留可复制文字。</p>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div class="md:col-span-2">
           <label class="block text-sm font-medium text-gray-700 mb-1">选择文件 (.xlsx, .docx, .md)</label>
@@ -167,9 +169,10 @@
       </div>
     </section>
 
-  <p class="help">图片最多 30 MB；GIF 输入只保留首帧。文档 PDF 为图片分页，文字不可搜索。Excel 仅导出首个工作表。PDF 转图片最多 50 页，扫描版 PDF 不能直接提取文字。依赖按需联网加载，文件内容留在本地。</p>
+  <p class="help">图片最多 30 MB；GIF 输入只保留首帧。文档 PDF 为图片分页，文字不可搜索。Excel 仅导出首个工作表。PDF 转图片最多 50 页，扫描版 PDF 不能直接提取文字。常用转换库由本站提供，音视频引擎需联网下载。<a href="privacy.html">处理范围与隐私说明</a></p>
   </main>
 
+  <script src="runtime.js" defer></script>
   <script src="app.js" defer></script>
 </body>
 </html>

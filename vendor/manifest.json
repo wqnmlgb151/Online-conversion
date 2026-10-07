@@ -1,0 +1,139 @@
+{
+  "libraries": [
+    {
+      "name": "html2canvas",
+      "version": "1.4.1",
+      "license": "MIT",
+      "files": [
+        "vendor/html2canvas/html2canvas.min.js",
+        "vendor/html2canvas/LICENSE"
+      ],
+      "urls": [
+        "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js",
+        "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/LICENSE"
+      ]
+    },
+    {
+      "name": "DOMPurify",
+      "version": "3.4.16",
+      "license": "Apache-2.0 OR MPL-2.0",
+      "files": [
+        "vendor/dompurify/purify.min.js",
+        "vendor/dompurify/LICENSE"
+      ],
+      "urls": [
+        "https://cdn.jsdelivr.net/npm/dompurify@3.4.16/dist/purify.min.js",
+        "https://cdn.jsdelivr.net/npm/dompurify@3.4.16/LICENSE"
+      ]
+    },
+    {
+      "name": "marked",
+      "version": "15.0.12",
+      "license": "MIT",
+      "files": [
+        "vendor/marked/marked.min.js",
+        "vendor/marked/LICENSE"
+      ],
+      "urls": [
+        "https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js",
+        "https://cdn.jsdelivr.net/npm/marked@15.0.12/LICENSE.md"
+      ]
+    },
+    {
+      "name": "SheetJS",
+      "version": "0.20.3",
+      "license": "Apache-2.0",
+      "files": [
+        "vendor/xlsx/xlsx.full.min.js",
+        "vendor/xlsx/LICENSE"
+      ],
+      "urls": [
+        "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js",
+        "https://cdn.sheetjs.com/xlsx-0.20.3/package/LICENSE"
+      ]
+    },
+    {
+      "name": "mammoth",
+      "version": "1.13.0",
+      "license": "BSD-2-Clause",
+      "files": [
+        "vendor/mammoth/mammoth.browser.min.js",
+        "vendor/mammoth/LICENSE"
+      ],
+      "urls": [
+        "https://cdn.jsdelivr.net/npm/mammoth@1.13.0/mammoth.browser.min.js",
+        "https://cdn.jsdelivr.net/npm/mammoth@1.13.0/LICENSE"
+      ]
+    },
+    {
+      "name": "jsPDF",
+      "version": "4.2.1",
+      "license": "MIT",
+      "files": [
+        "vendor/jspdf/jspdf.umd.min.js",
+        "vendor/jspdf/LICENSE"
+      ],
+      "urls": [
+        "https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js",
+        "https://cdn.jsdelivr.net/npm/jspdf@4.2.1/LICENSE"
+      ]
+    },
+    {
+      "name": "PDF.js",
+      "version": "6.4.299",
+      "license": "Apache-2.0",
+      "files": [
+        "vendor/pdfjs/pdf.min.mjs",
+        "vendor/pdfjs/pdf.worker.min.mjs",
+        "vendor/pdfjs/LICENSE"
+      ],
+      "urls": [
+        "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/build/pdf.min.mjs",
+        "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/build/pdf.worker.min.mjs",
+        "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/LICENSE"
+      ]
+    },
+    {
+      "name": "JSZip",
+      "version": "3.10.1",
+      "license": "MIT OR GPL-3.0",
+      "files": [
+        "vendor/jszip/jszip.min.js",
+        "vendor/jszip/LICENSE"
+      ],
+      "urls": [
+        "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js",
+        "https://cdn.jsdelivr.net/npm/jszip@3.10.1/LICENSE.markdown"
+      ]
+    },
+    {
+      "name": "FFmpeg wrapper",
+      "version": "0.12.10",
+      "license": "MIT",
+      "files": [
+        "vendor/ffmpeg/ffmpeg.js",
+        "vendor/ffmpeg/814.ffmpeg.js",
+        "vendor/ffmpeg/LICENSE"
+      ],
+      "urls": [
+        "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js",
+        "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/814.ffmpeg.js",
+        "https://raw.githubusercontent.com/ffmpegwasm/ffmpeg.wasm/main/LICENSE"
+      ]
+    }
+  ],
+  "external": [
+    {
+      "name": "FFmpeg core",
+      "version": "0.12.6",
+      "urls": [
+        "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js",
+        "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm"
+      ],
+      "sha256": {
+        "js": "a34873964b0f62aec516bac75e3aa9086ec3535d4d07f0269aa94ea748b6cb71",
+        "wasm": "2390efa7fb66e7e42dbae15427571a5ffc96b829480904c30f471f0a78967f61"
+      }
+    }
+  ]
+}
