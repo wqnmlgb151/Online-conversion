@@ -180,3 +180,43 @@ test('PDF drop works and results fit desktop and mobile layouts', async ({ page 
     await page.screenshot({ path: `.test-cache/stage2-${width}.png`, fullPage: true });
   }
 });
+
+test('PNG ignores unused quality and labeled tabs support keyboard navigation', async ({ page }) => {
+  await page.goto('/');
+  expect(await page.locator('input, select').evaluateAll(inputs => inputs.every(input => input.labels.length > 0))).toBe(true);
+  await page.locator('#img-input').setInputFiles(image());
+  await page.locator('#img-quality').fill('');
+  await page.locator('#img-format').selectOption('png');
+  await expect(page.locator('#img-quality')).toBeDisabled();
+  await finish(page, 'img');
+  await expect(page.locator('#img-quality')).toBeDisabled();
+  const output = await bytes(page.locator('#img-link'));
+  expect(output.readUInt32BE(16)).toBe(4); expect(output.readUInt32BE(20)).toBe(2);
+  const tab = page.getByRole('tab', { name: '图片', exact: true });
+  await tab.focus(); await tab.press('End');
+  await expect(page.getByRole('tab', { name: 'PDF', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('tab', { name: 'PDF', exact: true }).press('Home');
+  await expect(tab).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#img-down')).toBeVisible();
+  await tab.press('ArrowLeft');
+  await expect(page.getByRole('tab', { name: 'PDF', exact: true })).toBeFocused();
+  await page.getByRole('tab', { name: 'PDF', exact: true }).press('ArrowRight');
+  await expect(tab).toBeFocused();
+  await page.locator('#img-format').selectOption('webp'); await expect(page.locator('#img-quality')).toBeEnabled();
+});
+
+test('dropping files outside input zones prevents navigation and preserves results', async ({ page }) => {
+  await page.goto('/'); await page.locator('#img-input').setInputFiles(image()); await finish(page, 'img');
+  const url = page.url();
+  const prevented = await page.evaluate(() => {
+    const transfer = new DataTransfer(); transfer.items.add(new File(['sample'], 'outside.txt', { type: 'text/plain' }));
+    return ['dragover', 'drop'].map(type => {
+      const event = new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: transfer });
+      document.body.dispatchEvent(event); return event.defaultPrevented;
+    });
+  });
+  expect(prevented).toEqual([true, true]); expect(page.url()).toBe(url);
+  await expect(page.locator('#statusText')).toContainText('请将文件拖到');
+  await expect(page.locator('#results-list a')).toHaveCount(1);
+  expect((await bytes(page.locator('#img-link'))).length).toBeGreaterThan(0);
+});

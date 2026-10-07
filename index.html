@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>本地文件转换工具</title>
+  <meta name="description" content="在浏览器本地批量转换图片、处理 PDF、提取 Office 内容及转换音视频。支持尺寸调整和 ZIP 下载，无需上传文件。">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="styles.css">
   <style>
     .lib-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
@@ -36,25 +38,25 @@
     </div>
 
     <!-- Tab 导航 -->
-    <nav class="flex border-b border-gray-200 mb-6" id="mainTabs">
-      <button class="tab-btn active px-4 py-2 font-medium border-b-2 border-blue-600 text-blue-600" data-tab="image">图片</button>
-      <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700" data-tab="video">视频</button>
-      <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700" data-tab="audio">音频</button>
-      <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700" data-tab="doc">文档</button>
-      <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700" data-tab="pdf">PDF</button>
+    <nav class="flex border-b border-gray-200 mb-6" id="mainTabs" role="tablist" aria-label="转换功能">
+      <button id="tab-image" role="tab" aria-controls="panel-image" aria-selected="true" class="tab-btn active px-4 py-2 font-medium border-b-2 border-blue-600 text-blue-600" data-tab="image">图片</button>
+      <button id="tab-video" role="tab" aria-controls="panel-video" aria-selected="false" tabindex="-1" class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700" data-tab="video">视频</button>
+      <button id="tab-audio" role="tab" aria-controls="panel-audio" aria-selected="false" tabindex="-1" class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700" data-tab="audio">音频</button>
+      <button id="tab-doc" role="tab" aria-controls="panel-doc" aria-selected="false" tabindex="-1" class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700" data-tab="doc">文档</button>
+      <button id="tab-pdf" role="tab" aria-controls="panel-pdf" aria-selected="false" tabindex="-1" class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700" data-tab="pdf">PDF</button>
     </nav>
 
     <!-- 图片转换 -->
-    <section id="panel-image" class="tab-panel bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+    <section id="panel-image" role="tabpanel" aria-labelledby="tab-image" class="tab-panel bg-white p-6 rounded-lg shadow-sm border border-gray-200">
       <h2 class="text-lg font-semibold mb-4">图片格式互转</h2>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <div class="md:col-span-3">
-          <label class="block text-sm font-medium text-gray-700 mb-1">选择文件</label>
+          <label for="img-input" class="block text-sm font-medium text-gray-700 mb-1">选择图片</label>
           <div class="drop-zone" data-input="img-input"><input type="file" id="img-input" multiple accept="image/*" aria-label="选择图片" class="w-full text-sm text-gray-500"><p>选择多张图片，或拖拽到这里。每批最多 100 张。</p></div>
           <ol id="img-files" class="file-list" aria-label="已选择图片"></ol>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">目标格式</label>
+          <label for="img-format" class="block text-sm font-medium text-gray-700 mb-1">目标格式</label>
           <select id="img-format" class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
             <option value="webp">WebP</option>
             <option value="jpeg">JPG</option>
@@ -62,7 +64,7 @@
           </select>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">质量 (0.1-1.0)</label>
+          <label for="img-quality" class="block text-sm font-medium text-gray-700 mb-1">JPG / WebP 质量 (0.1-1.0)</label>
           <input type="number" id="img-quality" value="0.9" min="0.1" max="1" step="0.1" class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
         </div>
         <div><label for="img-width">目标宽度（像素）</label><input id="img-width" type="number" min="1" max="8192" step="1" placeholder="留空保留原尺寸"></div>
@@ -77,15 +79,15 @@
     </section>
 
     <!-- 视频转换 -->
-    <section id="panel-video" class="tab-panel hidden-tab bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+    <section id="panel-video" role="tabpanel" aria-labelledby="tab-video" class="tab-panel hidden-tab bg-white p-6 rounded-lg shadow-sm border border-gray-200">
       <h2 class="text-lg font-semibold mb-4">视频格式转换（实验功能）</h2>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div class="md:col-span-2">
-          <label class="block text-sm font-medium text-gray-700 mb-1">选择文件</label>
+          <label for="vid-input" class="block text-sm font-medium text-gray-700 mb-1">选择视频</label>
           <input type="file" id="vid-input" accept="video/*" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700">
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">目标格式</label>
+          <label for="vid-format" class="block text-sm font-medium text-gray-700 mb-1">目标格式</label>
           <select id="vid-format" class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
             <option value="mp4">MP4 (H.264)</option>
             <option value="webm">WebM</option>
@@ -102,15 +104,15 @@
     </section>
 
     <!-- 音频转换 -->
-    <section id="panel-audio" class="tab-panel hidden-tab bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+    <section id="panel-audio" role="tabpanel" aria-labelledby="tab-audio" class="tab-panel hidden-tab bg-white p-6 rounded-lg shadow-sm border border-gray-200">
       <h2 class="text-lg font-semibold mb-4">音频格式转换（实验功能）</h2>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div class="md:col-span-2">
-          <label class="block text-sm font-medium text-gray-700 mb-1">选择文件</label>
+          <label for="aud-input" class="block text-sm font-medium text-gray-700 mb-1">选择音频</label>
           <input type="file" id="aud-input" accept="audio/*" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700">
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">目标格式</label>
+          <label for="aud-format" class="block text-sm font-medium text-gray-700 mb-1">目标格式</label>
           <select id="aud-format" class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
             <option value="mp3">MP3</option>
             <option value="wav">WAV</option>
@@ -126,16 +128,16 @@
     </section>
 
     <!-- 文档转换 -->
-    <section id="panel-doc" class="tab-panel hidden-tab bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+    <section id="panel-doc" role="tabpanel" aria-labelledby="tab-doc" class="tab-panel hidden-tab bg-white p-6 rounded-lg shadow-sm border border-gray-200">
       <h2 class="text-lg font-semibold mb-4">Office 内容提取 / Markdown 转换</h2>
       <p>DOCX 转 HTML / PDF 会省略图片、链接及复杂排版；PDF 为图片分页。请选择 TXT 或 HTML 保留可复制文字。</p>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div class="md:col-span-2">
-          <label class="block text-sm font-medium text-gray-700 mb-1">选择文件 (.xlsx, .docx, .md)</label>
+          <label for="doc-input" class="block text-sm font-medium text-gray-700 mb-1">选择文档 (.xlsx, .docx, .md, .txt)</label>
           <input type="file" id="doc-input" accept=".xlsx,.docx,.md,.txt" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700">
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">目标格式</label>
+          <label for="doc-format" class="block text-sm font-medium text-gray-700 mb-1">目标格式</label>
           <select id="doc-format" class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
             <option value="pdf">PDF</option>
             <option value="html">HTML</option>
@@ -152,16 +154,16 @@
     </section>
 
     <!-- PDF处理 -->
-    <section id="panel-pdf" class="tab-panel hidden-tab bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+    <section id="panel-pdf" role="tabpanel" aria-labelledby="tab-pdf" class="tab-panel hidden-tab bg-white p-6 rounded-lg shadow-sm border border-gray-200">
       <h2 class="text-lg font-semibold mb-4">PDF 工具箱</h2>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div class="md:col-span-2">
-          <label class="block text-sm font-medium text-gray-700 mb-1">选择文件 (PDF 或 图片)</label>
+          <label for="pdf-input" class="block text-sm font-medium text-gray-700 mb-1">选择文件 (PDF 或 图片)</label>
           <div class="drop-zone" data-input="pdf-input"><input type="file" id="pdf-input" multiple accept=".pdf,image/*" aria-label="选择 PDF 或图片" class="w-full text-sm text-gray-500"><p>拖拽 PDF 或多张图片到这里。合并顺序可用下方按钮调整。</p></div>
           <ol id="pdf-files" class="file-list" aria-label="PDF 输入顺序"></ol>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">操作</label>
+          <label for="pdf-action" class="block text-sm font-medium text-gray-700 mb-1">操作</label>
           <select id="pdf-action" class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
             <option value="to-img">PDF 转图片 (ZIP)</option>
             <option value="to-txt">PDF 提取文本</option>

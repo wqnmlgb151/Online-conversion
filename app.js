@@ -44,7 +44,7 @@
         get busy() { return this._busy; },
         set busy(value) {
           this._busy = value;
-          document.querySelectorAll('button, input, select').forEach(el => { el.disabled = value || el.dataset?.orderDisabled === 'true'; });
+          document.querySelectorAll('button, input, select').forEach(el => { el.disabled = value || el.dataset?.orderDisabled === 'true' || el.dataset?.optionDisabled === 'true'; });
           document.querySelector('main').setAttribute('aria-busy', String(value));
         },
         results: [],
@@ -160,6 +160,12 @@
         }
       });
       const ensureLib = name => loader.ensure(name);
+      const updateImageOptions = () => {
+        const disabled = $('img-format').value === 'png';
+        $('img-quality').dataset.optionDisabled = String(disabled);
+        $('img-quality').disabled = state.busy || disabled;
+      };
+      $('img-format').addEventListener('change', updateImageOptions);
       ['img','vid','aud','doc','pdf'].forEach(prefix => {
         $(`${prefix}-btn`).addEventListener('click', () => { state.lastAction = `${prefix}-btn`; });
       });
@@ -293,6 +299,15 @@
           input.files = transfer.files; input.dispatchEvent(new Event('change', { bubbles: true }));
         });
       });
+      const preventFileNavigation = event => {
+        if (!Array.from(event.dataTransfer?.types || []).includes('Files')) return;
+        event.preventDefault();
+        if (event.type === 'drop' && !event.target?.closest?.('.drop-zone')) {
+          setStatus(state.busy ? '正在处理文件，请稍后再选择文件' : '请将文件拖到图片或 PDF 的文件选择区域');
+        }
+      };
+      document.addEventListener('dragover', preventFileNavigation);
+      document.addEventListener('drop', preventFileNavigation);
       $('pdf-action').addEventListener('change', () => $('pdf-pages-field').classList.toggle('hidden', $('pdf-action').value === 'merge'));
       const updateDocFormats = () => {
         const excel = /\.xlsx$/i.test($('doc-input').files[0]?.name || '');
@@ -304,19 +319,32 @@
       // ================= Tab 切换 =================
       document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
+          if (state.busy) return;
           // UI 更新
           document.querySelectorAll('.tab-btn').forEach(b => {
             b.classList.remove('border-blue-600', 'text-blue-600');
             b.classList.add('border-transparent', 'text-gray-500');
+            b.setAttribute('aria-selected', 'false');
+            b.tabIndex = -1;
           });
           btn.classList.add('border-blue-600', 'text-blue-600');
           btn.classList.remove('border-transparent', 'text-gray-500');
+          btn.setAttribute('aria-selected', 'true');
+          btn.tabIndex = 0;
 
           // 面板切换
           const tab = btn.dataset.tab;
           document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden-tab'));
           $(`panel-${tab}`).classList.remove('hidden-tab');
           setStatus("就绪");
+        });
+        btn.addEventListener('keydown', event => {
+          if (state.busy || !['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+          event.preventDefault();
+          const tabs = Array.from(document.querySelectorAll('.tab-btn'));
+          const index = tabs.indexOf(btn);
+          const destination = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+          tabs[destination].focus(); tabs[destination].click();
         });
       });
 
@@ -332,9 +360,9 @@
         setStatus("处理中...");
 
         try {
-          const quality = parseFloat($('img-quality').value);
-          if (!Number.isFinite(quality) || quality < 0.1 || quality > 1) throw new Error('质量必须在 0.1 至 1 之间');
           const fmt = $('img-format').value;
+          const quality = fmt === 'png' ? 1 : parseFloat($('img-quality').value);
+          if (!Number.isFinite(quality) || quality < 0.1 || quality > 1) throw new Error('质量必须在 0.1 至 1 之间');
           const width = readDimension($('img-width').value), height = readDimension($('img-height').value);
           let succeeded = 0, lastError = '';
           for (const [index, file] of files.entries()) {
@@ -721,6 +749,7 @@
       updateMiniStatus();
       setStatus("就绪");
       updateDocFormats();
+      updateImageOptions();
       renderResults();
 
     })();

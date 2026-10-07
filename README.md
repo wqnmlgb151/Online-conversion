@@ -1,8 +1,18 @@
 # 本地文件转换工具
 
+[![验证状态](https://github.com/wqnmlgb151/Online-conversion/actions/workflows/verify.yml/badge.svg)](https://github.com/wqnmlgb151/Online-conversion/actions/workflows/verify.yml)
+
+**[打开在线工具](https://online-conversion.pages.dev/)** · [处理范围与隐私](https://online-conversion.pages.dev/privacy.html) · [阶段规划](docs/ROADMAP.md)
+
 纯静态网站，文件在浏览器内转换，无后端、无文件上传。图片、Office、Markdown、PDF 所需脚本随站点分发；音视频转换按需下载 FFmpeg 核心，并校验 SHA-256。当前没有 PWA 或完整离线支持。
 
 在线使用：[https://online-conversion.pages.dev/](https://online-conversion.pages.dev/)。用户已配置 Cloudflare Pages 同步 GitHub 仓库部署；生产分支为 `main`，更新推送后由 Cloudflare 自动构建发布。
+
+## 快速使用
+
+1. 打开在线工具，选择图片、文档、PDF、音频或视频功能。
+2. 选择文件和输出格式；批量图片、PDF 区域也可直接拖入文件。
+3. 开始转换，在结果区单独下载或打包 ZIP。文件在浏览器内处理，无需注册。
 
 ## 支持范围
 
@@ -87,5 +97,15 @@ npm run test:e2e
 Chrome 测试直接访问 `dist` 发布目录，使用真实 PNG、XLSX、DOCX、中文 Markdown / TXT、PDF、WAV 和一秒合成视频，验证输出可以重新解码或渲染，以及损坏文件、依赖失败和重试。音视频测试用已校验的缓存响应 CDN 请求，不依赖每次实时下载；上线后的 CDN 连通性需要另行冒烟验证。
 
 GitHub Actions 配置见 `.github/workflows/verify.yml`，失败时保存浏览器截图和 trace。测试样本是合成文件，不能代表所有复杂排版、编码、大文件和移动设备。
+
+### 线上验收
+
+```sh
+node scripts/cache-core.cjs
+node scripts/generate-media.cjs
+npm run test:live
+```
+
+线上验收直接访问 Cloudflare Pages，复用批量处理用例，并验证 Office / PDF 与音视频输出。FFmpeg 核心使用真实 CDN 下载，不使用本地缓存替换网络响应；缓存核心仅用于生成合成视频输入。依赖失败恢复用例会主动中断一次 Excel 脚本请求，再恢复正常网络。检查记录见 [docs/LIVE-VERIFICATION.md](docs/LIVE-VERIFICATION.md)。可用 `LIVE_BASE_URL` 环境变量指定其他已部署地址。
 
 阶段规划见 [docs/ROADMAP.md](docs/ROADMAP.md)。

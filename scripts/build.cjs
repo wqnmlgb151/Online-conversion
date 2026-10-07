@@ -3,7 +3,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const output = path.join(root, 'dist');
 fs.mkdirSync(output, {recursive:true});
-const files = ['index.html','app.js','runtime.js','styles.css','privacy.html',
+const files = ['index.html','app.js','runtime.js','styles.css','privacy.html','favicon.svg',
   'vendor/manifest.json','vendor/checksums.json',
   ...require('../vendor/manifest.json').libraries.flatMap(library=>library.files)];
 for (const file of files) {

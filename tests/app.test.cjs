@@ -7,7 +7,7 @@ function setup() {
   const elements = new Map();
   const el = id => {
     if (!elements.has(id)) elements.set(id, {
-      files: [], value: '', textContent: '', options: [], selectedOptions: [{ disabled: false }],
+      files: [], value: '', textContent: '', dataset: {}, options: [], selectedOptions: [{ disabled: false }],
       classList: { add() {}, remove() {}, toggle() {} }, parentElement: { classList: { remove() {} } },
       listeners: {}, addEventListener(type, fn) { this.listeners[type] = fn; },
       appendChild() {}, replaceChildren() {}, setAttribute() {}, removeAttribute() {}
@@ -19,6 +19,7 @@ function setup() {
   const context = {
     document: {
       getElementById: el, createElement: () => el('created'),
+      addEventListener() {},
       createTextNode: text => text, querySelector: () => el('main'),
       querySelectorAll: selector => selector === 'input[type=file]' ? inputs : []
     },
@@ -51,6 +52,18 @@ test('invalid image quality is rejected before decoding', async () => {
     await el('img-btn').listeners.click();
     assert.match(el('statusText').textContent, /质量必须/);
   }
+});
+
+test('PNG bypasses irrelevant quality validation and stays disabled after processing', async () => {
+  const { el } = setup();
+  el('img-input').files = [Object.assign(new Blob(['broken']), { name: 'broken.png' })];
+  el('img-format').value = 'png'; el('img-quality').value = '';
+  el('img-format').listeners.change();
+  await el('img-btn').listeners.click();
+  assert.match(el('statusText').textContent, /图片无法解码/);
+  assert.equal(el('img-quality').disabled, true);
+  el('img-format').value = 'webp'; el('img-format').listeners.change();
+  assert.equal(el('img-quality').disabled, false);
 });
 
 test('empty and oversized inputs are cleared', () => {
