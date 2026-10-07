@@ -5,8 +5,10 @@
 ## 发布与 GitHub 展示
 
 - 第二阶段已推送至 `main`，提交 `c217659`，GitHub Actions 验证成功，Cloudflare 线上页面已出现批量图片与统一结果区。
+- 线上修复已推送，提交 `228789f`，Cloudflare Pages 与 GitHub Actions 的 `verify` 检查均成功；已重新打开线上页面确认修复版本生效。
 - README 提供直接访问入口、快速使用说明、隐私说明入口及真实 GitHub Actions 状态标识。
 - 使用 gh CLI 更新 About 描述、网站地址及 9 个项目标签，方便发现项目的处理范围和部署方式。
+- README 界面截图取自修复后的真实线上页面，使用合成演示图片；截图文件为 `docs/images/preview.png`。
 
 ## 线上发现与修复
 
@@ -27,7 +29,20 @@
 
 ## 验证状态
 
-修复后的本地回归和再次部署后的线上回归进行中，完成后补充结果。
+| 检查 | 结果 |
+| --- | --- |
+| JavaScript 语法检查 | 通过 |
+| 单元测试 | 18 / 18 通过 |
+| 本地 Chrome 完整回归 | 49 / 49 通过，针对正式 dist |
+| 修复部署后的线上 Chrome 验收 | 15 / 15 通过，直接访问 Cloudflare 地址 |
+| 真实 CDN 音视频验收 | JS / WASM 下载成功，8 种公开输出格式生成成功 |
+| 静态构建 | 20 个依赖文件校验通过，生成 28 个发布文件，包含 favicon |
+| GitHub 与 Cloudflare 检查 | 228789f 的 verify 和 Cloudflare Pages 均成功 |
+| Git diff 格式检查 | 通过 |
+
+线上输出已重新解码图片、音频和视频，并解析 PDF、ZIP 或文本内容；GIF 检查文件头与尺寸。批量用例在 1280 与 390 像素视口检查页面没有横向溢出。PNG 的无关质量字段不再阻止转换；表单标签、键盘导航与误拖拽保护均通过线上用例。
+
+GitHub Actions：[修复提交的验证记录](https://github.com/wqnmlgb151/Online-conversion/actions/runs/37635099581)。线上用例报告输出到忽略的 `.test-cache/live-results.json`、`playwright-report/live` 和 `test-results/live`，不提交测试缓存。
 
 ## 证据范围
 
