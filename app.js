@@ -44,10 +44,13 @@
         get busy() { return this._busy; },
         set busy(value) {
           this._busy = value;
-          document.querySelectorAll('button, input, select').forEach(el => { el.disabled = value; });
+          document.querySelectorAll('button, input, select').forEach(el => { el.disabled = value || el.dataset?.orderDisabled === 'true'; });
           document.querySelector('main').setAttribute('aria-busy', String(value));
         },
-        activeBlob: null
+        results: [],
+        nextResultId: 1,
+        selectedFiles: {},
+        zipURL: null
       };
 
       // ================= 工具函数 =================
@@ -60,23 +63,92 @@
       };
       
       const clearBlob = () => {
-        if (state.activeBlob) {
-          URL.revokeObjectURL(state.activeBlob);
-          state.activeBlob = null;
-        }
-        // 隐藏所有下载链接
+        state.results.forEach(result => { if (result.url) URL.revokeObjectURL(result.url); });
+        state.results = [];
+        if (state.zipURL) URL.revokeObjectURL(state.zipURL);
+        state.zipURL = null;
         ['img-down','vid-down','aud-down','doc-down','pdf-down'].forEach(id => $(id).classList.add('hidden'));
       };
+      const invalidateArchive = () => {
+        if (state.zipURL) URL.revokeObjectURL(state.zipURL);
+        state.zipURL = null;
+      };
 
-      const triggerDownload = (linkEl, blob, filename) => {
+      const formatSize = bytes => bytes < 1024 ? `${bytes} B` : bytes < 1048576 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1048576).toFixed(1)} MB`;
+      const renderResults = () => {
+        const list = $('results-list');
+        list.replaceChildren();
+        const successes = state.results.filter(result => result.blob);
+        $('results-summary').textContent = state.results.length ? `${successes.length} 个成功，${state.results.length - successes.length} 个失败 · 结果保留至清空或离开页面` : '暂无结果。结果保留至清空或离开页面。';
+        for (const result of state.results) {
+          const row = document.createElement('li');
+          row.className = result.blob ? 'result-row' : 'result-row result-error';
+          const info = document.createElement('div');
+          const title = document.createElement('strong'); title.textContent = result.name; info.appendChild(title);
+          const detail = document.createElement('p');
+          const comparison = result.blob && result.sourceSize ? `${formatSize(result.sourceSize)} → ${formatSize(result.blob.size)} (${result.blob.size >= result.sourceSize ? '增大' : '减少'} ${Math.abs((result.blob.size / result.sourceSize - 1) * 100).toFixed(1)}%)` : formatSize(result.blob?.size || 0);
+          detail.textContent = result.error || `${comparison}${result.dimensions ? ` · ${result.dimensions}` : ''}`;
+          info.appendChild(detail); row.appendChild(info);
+          if (result.blob) { const link = document.createElement('a'); link.href = result.url; link.download = result.name; link.textContent = '下载'; row.appendChild(link); }
+          const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '删除'; remove.setAttribute('aria-label', `删除结果 ${result.name}`);
+          remove.disabled = state.busy;
+          remove.addEventListener('click', () => {
+            if (state.busy) return;
+            if (result.url) URL.revokeObjectURL(result.url);
+            invalidateArchive();
+            state.results = state.results.filter(item => item.id !== result.id);
+            refreshDownloadLinks(); renderResults();
+          });
+          row.appendChild(remove); list.appendChild(row);
+        }
+      };
+      const refreshDownloadLinks = () => {
+        for (const prefix of ['img','vid','aud','doc','pdf']) {
+          const result = state.results.filter(item => item.linkId === `${prefix}-link` && item.blob).at(-1);
+          $(`${prefix}-down`).classList.toggle('hidden', !result);
+          const link = $(`${prefix}-link`);
+          if (result) { link.href = result.url; link.download = result.name; }
+          else link.removeAttribute('href');
+        }
+      };
+      const triggerDownload = (linkEl, blob, filename, metadata = {}) => {
         if (!(blob instanceof Blob) || !blob.size) throw new Error('未生成有效文件');
-        clearBlob();
+        invalidateArchive();
         const url = URL.createObjectURL(blob);
-        state.activeBlob = url;
+        state.results.push({ id: state.nextResultId++, blob, url, name: filename, linkId: linkEl.id, ...metadata });
         linkEl.href = url;
         linkEl.download = filename;
         linkEl.parentElement.classList.remove('hidden');
+        renderResults();
       };
+      $('results-clear').addEventListener('click', () => { if (!state.busy) { clearBlob(); refreshDownloadLinks(); renderResults(); setStatus('结果已清空'); } });
+      const uniqueName = (name, used) => {
+        const safe = name.replace(/[\\/\u0000-\u001f]/g, '_');
+        let candidate = safe, suffix = 2;
+        while (used.has(candidate.toLowerCase())) {
+          const dot = safe.lastIndexOf('.');
+          candidate = dot > 0 ? `${safe.slice(0, dot)} (${suffix++})${safe.slice(dot)}` : `${safe} (${suffix++})`;
+        }
+        used.add(candidate.toLowerCase()); return candidate;
+      };
+      $('results-zip').addEventListener('click', async () => {
+        if (state.busy) return;
+        state.lastAction = 'results-zip';
+        const results = state.results.filter(result => result.blob);
+        if (!results.length) return setStatus('没有可下载的成功结果');
+        state.busy = true;
+        try {
+          await ensureLib('jszip'); setStatus('正在打包结果...');
+          const zip = new JSZip(), used = new Set();
+          results.forEach(result => zip.file(uniqueName(result.name, used), result.blob));
+          const blob = await zip.generateAsync({ type: 'blob' });
+          if (state.zipURL) URL.revokeObjectURL(state.zipURL);
+          state.zipURL = URL.createObjectURL(blob);
+          const link = document.createElement('a'); link.href = state.zipURL; link.download = '转换结果.zip'; link.click();
+          setStatus(`已打包 ${results.length} 个结果`);
+        } catch (error) { setStatus(`打包失败: ${error.message || error}`); }
+        finally { state.busy = false; }
+      });
 
       const { withTimeout, fetchBytes, createLoader } = ConversionRuntime;
       const loader = createLoader(LIBS, {
@@ -174,24 +246,60 @@
         } finally { URL.revokeObjectURL(url); }
       };
       // Validate before expensive decoding and give immediate feedback.
+      const renderFiles = input => {
+        const target = $(input.id === 'img-input' ? 'img-files' : 'pdf-files');
+        target.replaceChildren();
+        const files = state.selectedFiles[input.id] || [];
+        files.forEach((file, index) => {
+          const row = document.createElement('li');
+          const label = document.createElement('span'); label.textContent = `${index + 1}. ${file.name} · ${formatSize(file.size)}`; row.appendChild(label);
+          if (input.id === 'pdf-input') {
+            for (const [offset, text] of [[-1, '上移'], [1, '下移']]) {
+              const button = document.createElement('button'); button.type = 'button'; button.textContent = text;
+              button.setAttribute('aria-label', `${text} ${file.name}`); button.disabled = index + offset < 0 || index + offset >= files.length;
+              button.dataset.orderDisabled = String(button.disabled);
+              button.addEventListener('click', () => {
+                if (state.busy) return;
+                const destination = index + offset;
+                [files[index], files[destination]] = [files[destination], files[index]];
+                renderFiles(input);
+              }); row.appendChild(button);
+            }
+          }
+          target.appendChild(row);
+        });
+      };
       document.querySelectorAll('input[type=file]').forEach(input => {
         input.addEventListener('change', () => {
-          clearBlob();
           const files = Array.from(input.files);
           const limit = ['vid-input','aud-input'].includes(input.id) ? 200 : 30;
-          if (files.some(file => !file.size || file.size > limit * 1024 * 1024) || files.reduce((n, file) => n + file.size, 0) > 200 * 1024 * 1024) {
+          if (files.length > 100 || files.some(file => !file.size || file.size > limit * 1024 * 1024) || files.reduce((n, file) => n + file.size, 0) > 200 * 1024 * 1024) {
             input.value = '';
-            setStatus(`文件不能为空，单个文件最多 ${limit} MB，总大小最多 200 MB`);
-          } else { setStatus(files.length ? `已选择 ${files.length} 个文件` : '就绪'); }
+            state.selectedFiles[input.id] = [];
+            setStatus(`文件不能为空，单个文件最多 ${limit} MB，总大小最多 200 MB，每批最多 100 个文件`);
+          } else { state.selectedFiles[input.id] = files; setStatus(files.length ? `已选择 ${files.length} 个文件` : '就绪'); }
+          if (['img-input','pdf-input'].includes(input.id)) renderFiles(input);
           if (input.id === 'doc-input') updateDocFormats();
         });
       });
+      document.querySelectorAll('.drop-zone').forEach(zone => {
+        zone.addEventListener('dragover', event => { event.preventDefault(); if (!state.busy) zone.classList.add('drag-over'); });
+        zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+        zone.addEventListener('drop', event => {
+          event.preventDefault(); zone.classList.remove('drag-over');
+          if (state.busy || !event.dataTransfer?.files.length) return;
+          const input = $(zone.dataset.input), transfer = new DataTransfer();
+          for (const file of event.dataTransfer.files) transfer.items.add(file);
+          input.files = transfer.files; input.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+      });
+      $('pdf-action').addEventListener('change', () => $('pdf-pages-field').classList.toggle('hidden', $('pdf-action').value === 'merge'));
       const updateDocFormats = () => {
         const excel = /\.xlsx$/i.test($('doc-input').files[0]?.name || '');
         for (const option of $('doc-format').options) option.disabled = ['json','csv'].includes(option.value) && !excel;
         if ($('doc-format').selectedOptions[0].disabled) $('doc-format').value = 'pdf';
       };
-      window.addEventListener('pagehide', clearBlob);
+      window.addEventListener('pagehide', () => { clearBlob(); refreshDownloadLinks(); renderResults(); });
 
       // ================= Tab 切换 =================
       document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -208,7 +316,6 @@
           const tab = btn.dataset.tab;
           document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden-tab'));
           $(`panel-${tab}`).classList.remove('hidden-tab');
-          clearBlob();
           setStatus("就绪");
         });
       });
@@ -218,39 +325,74 @@
       // 1. 图片转换
       $('img-btn').addEventListener('click', async () => {
         if (state.busy) return;
-        const file = $('img-input').files[0];
-        if (!file) return setStatus("请先选择图片");
+        const files = state.selectedFiles['img-input'] || Array.from($('img-input').files);
+        if (!files.length) return setStatus("请先选择图片");
         
         state.busy = true;
         setStatus("处理中...");
-        clearBlob();
 
         try {
           const quality = parseFloat($('img-quality').value);
           if (!Number.isFinite(quality) || quality < 0.1 || quality > 1) throw new Error('质量必须在 0.1 至 1 之间');
-          const img = new Image();
-          await loadImage(img, file);
-
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width;
-          canvas.height = img.height;
-          const ctx = canvas.getContext('2d');
-          if ($('img-format').value === 'jpeg') { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
-          ctx.drawImage(img, 0, 0);
-
           const fmt = $('img-format').value;
-          const blob = await new Promise(res => canvas.toBlob(res, `image/${fmt}`, quality));
-          
-          if (!blob || blob.type !== `image/${fmt}`) throw new Error('浏览器不支持该输出格式');
-          const newName = outputName(file.name, fmt === 'jpeg' ? 'jpg' : fmt);
-          triggerDownload($('img-link'), blob, newName);
-          setStatus("转换完成");
+          const width = readDimension($('img-width').value), height = readDimension($('img-height').value);
+          let succeeded = 0, lastError = '';
+          for (const [index, file] of files.entries()) {
+            setStatus(`转换图片 ${index + 1}/${files.length}`);
+            const canvas = document.createElement('canvas');
+            try {
+              const img = new Image(); await loadImage(img, file);
+              const dimensions = resizeDimensions(img.naturalWidth, img.naturalHeight, width, height, $('img-ratio').checked);
+              canvas.width = dimensions.width; canvas.height = dimensions.height;
+              const ctx = canvas.getContext('2d');
+              if (fmt === 'jpeg') { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              const blob = await new Promise(resolve => canvas.toBlob(resolve, `image/${fmt}`, quality));
+              if (!blob || blob.type !== `image/${fmt}`) throw new Error('浏览器不支持该输出格式');
+              triggerDownload($('img-link'), blob, outputName(file.name, fmt === 'jpeg' ? 'jpg' : fmt), { sourceSize: file.size, dimensions: `${img.naturalWidth} × ${img.naturalHeight} → ${canvas.width} × ${canvas.height}` });
+              succeeded++;
+            } catch (error) {
+              lastError = `转换失败: ${error.message || error}`;
+              state.results.push({ id: state.nextResultId++, name: file.name, error: lastError }); renderResults();
+            } finally { canvas.width = canvas.height = 0; }
+          }
+          setStatus(`转换完成：${succeeded} 个成功${lastError ? `，${files.length - succeeded} 个失败 · ${lastError}` : ''}`);
         } catch (e) {
           setStatus("转换失败: " + (e?.message || String(e)));
         } finally {
           state.busy = false;
         }
       });
+
+      const readDimension = value => {
+        if (!value.trim()) return null;
+        const number = Number(value);
+        if (!Number.isInteger(number) || number < 1 || number > 8192) throw new Error('尺寸必须为 1 至 8192 的整数');
+        return number;
+      };
+      const resizeDimensions = (originalWidth, originalHeight, width, height, keepRatio) => {
+        let w = width || originalWidth, h = height || originalHeight;
+        if (width && !height) h = Math.max(1, Math.round(originalHeight * width / originalWidth));
+        else if (height && !width) w = Math.max(1, Math.round(originalWidth * height / originalHeight));
+        else if (width && height && keepRatio) {
+          const ratio = Math.min(width / originalWidth, height / originalHeight);
+          w = Math.max(1, Math.round(originalWidth * ratio)); h = Math.max(1, Math.round(originalHeight * ratio));
+        }
+        if (w * h > 40000000 || ((width || height) && Math.max(w, h) > 8192)) throw new Error('输出尺寸超过 8192 像素或 4000 万像素');
+        return { width: w, height: h };
+      };
+      const parsePages = (value, count) => {
+        if (!value.trim()) return Array.from({ length: count }, (_, index) => index + 1);
+        const pages = new Set();
+        for (const part of value.replace(/，/g, ',').split(',')) {
+          const match = /^\s*(\d+)(?:\s*-\s*(\d+))?\s*$/.exec(part);
+          if (!match) throw new Error('页码格式错误，请使用 1,3-5,2');
+          const start = Number(match[1]), end = Number(match[2] || match[1]);
+          if (start < 1 || end < start || end > count) throw new Error(`页码超出范围，请选择 1 至 ${count} 页`);
+          for (let page = start; page <= end; page++) pages.add(page);
+        }
+        return [...pages];
+      };
 
       // 通用 FFmpeg 处理
       const runFFmpeg = async (file, ext, args, outName, mime) => {
@@ -286,7 +428,6 @@
         
         state.busy = true;
         setStatus("准备中...");
-        clearBlob();
 
         try {
           const fmt = $('vid-format').value;
@@ -326,7 +467,6 @@
         
         state.busy = true;
         setStatus("准备中...");
-        clearBlob();
 
         try {
           const fmt = $('aud-format').value;
@@ -398,7 +538,6 @@
         
         state.busy = true;
         setStatus("处理中...");
-        clearBlob();
 
         const ext = file.name.split('.').pop().toLowerCase();
         const target = $('doc-format').value;
@@ -473,12 +612,11 @@
       // 5. PDF 处理
       $('pdf-btn').addEventListener('click', async () => {
         if (state.busy) return;
-        const files = Array.from($('pdf-input').files);
+        const files = state.selectedFiles['pdf-input'] || Array.from($('pdf-input').files);
         if (files.length === 0) return setStatus("请先选择文件");
         
         state.busy = true;
         setStatus("处理中...");
-        clearBlob();
 
         const action = $('pdf-action').value;
         let blob = null;
@@ -524,12 +662,13 @@
             const loadingTask = pdfjsLib.getDocument({data: buf, isEvalSupported: false});
             try {
             const pdf = await loadingTask.promise;
+            const pages = parsePages($('pdf-pages').value, pdf.numPages);
 
             if (action === 'to-txt') {
               let text = "";
               let characters = 0;
-              for(let i=1; i<=pdf.numPages; i++) {
-                setStatus(`提取文本 ${i}/${pdf.numPages}`);
+              for (const [index, i] of pages.entries()) {
+                setStatus(`提取文本 ${index + 1}/${pages.length}（第 ${i} 页）`);
                 const page = await pdf.getPage(i);
                 const content = await page.getTextContent();
                 characters += content.items.reduce((count, item) => count + (item.str || '').trim().length, 0);
@@ -543,10 +682,9 @@
             } 
             else if (action === 'to-img') {
               const zip = new JSZip();
-              if (pdf.numPages > 50) throw new Error('PDF 转图片最多支持 50 页，请先拆分文档');
-              const maxPages = pdf.numPages;
-              for(let i=1; i<=maxPages; i++) {
-                setStatus(`渲染图片 ${i}/${maxPages}`);
+              if (pages.length > 50) throw new Error('PDF 转图片最多支持 50 页，请填写页码选择部分页面');
+              for (const [index, i] of pages.entries()) {
+                setStatus(`渲染图片 ${index + 1}/${pages.length}（第 ${i} 页）`);
                 const page = await pdf.getPage(i);
                 const scale = 2;
                 const viewport = page.getViewport({scale});
@@ -583,5 +721,6 @@
       updateMiniStatus();
       setStatus("就绪");
       updateDocFormats();
+      renderResults();
 
     })();

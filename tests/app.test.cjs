@@ -10,7 +10,7 @@ function setup() {
       files: [], value: '', textContent: '', options: [], selectedOptions: [{ disabled: false }],
       classList: { add() {}, remove() {}, toggle() {} }, parentElement: { classList: { remove() {} } },
       listeners: {}, addEventListener(type, fn) { this.listeners[type] = fn; },
-      appendChild() {}, setAttribute() {}
+      appendChild() {}, replaceChildren() {}, setAttribute() {}, removeAttribute() {}
     });
     return elements.get(id);
   };
@@ -27,7 +27,7 @@ function setup() {
     Image: class { set src(value) { this.onerror(); } }
   };
   const source = fs.readFileSync('app.js', 'utf8').replace('    })();',
-    'globalThis.api = { state, outputName, escapeHTML, runFFmpeg, loadImage }; })();');
+    'globalThis.api = { state, outputName, escapeHTML, runFFmpeg, loadImage, parsePages, resizeDimensions, readDimension, uniqueName }; })();');
   vm.runInNewContext(source, context);
   return { ...context, el };
 }
@@ -93,4 +93,29 @@ test('non Excel files cannot be exported as fake JSON', async () => {
   el('doc-format').value = 'json';
   await el('doc-btn').listeners.click();
   assert.match(el('statusText').textContent, /仅支持 Excel/);
+});
+
+test('PDF selection preserves requested order, deduplicates and rejects invalid ranges', () => {
+  const { api } = setup();
+  assert.equal(JSON.stringify(api.parsePages('3,1-2,2', 4)), '[3,1,2]');
+  assert.equal(JSON.stringify(api.parsePages('', 2)), '[1,2]');
+  for (const value of ['0', '2-1', '1,', '5', '1-999999999', 'abc']) assert.throws(() => api.parsePages(value, 4));
+});
+
+test('image resize fits bounds, supports one side and exact dimensions', () => {
+  const { api } = setup();
+  const dimensions = (...args) => JSON.stringify(api.resizeDimensions(...args));
+  assert.equal(dimensions(400, 200, 100, 100, true), '{"width":100,"height":50}');
+  assert.equal(dimensions(400, 200, null, 50, false), '{"width":100,"height":50}');
+  assert.equal(dimensions(400, 200, 100, 100, false), '{"width":100,"height":100}');
+  assert.throws(() => api.resizeDimensions(400, 200, 8192, 8192, false));
+  for (const value of ['0','1.5','8193']) assert.throws(() => api.readDimension(value));
+});
+
+test('ZIP names avoid collisions including case and path separators', () => {
+  const { api } = setup(), used = new Set();
+  assert.equal(api.uniqueName('photo.png', used), 'photo.png');
+  assert.equal(api.uniqueName('PHOTO.PNG', used), 'PHOTO (2).PNG');
+  assert.equal(api.uniqueName('photo (2).png', used), 'photo (2) (2).png');
+  assert.equal(api.uniqueName('../photo.png', used), '.._photo.png');
 });
