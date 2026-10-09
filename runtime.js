@@ -12,8 +12,11 @@
     return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
   }
 
-  async function fetchBytes(url, milliseconds = 60000, expectedHash) {
+  async function fetchBytes(url, milliseconds = 60000, expectedHash, signal) {
     const controller = new AbortController();
+    const abort = () => controller.abort();
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) abort();
     const timer = setTimeout(() => controller.abort(), milliseconds);
     try {
       const response = await fetch(url, { signal: controller.signal });
@@ -26,9 +29,30 @@
       }
       return bytes;
     } catch (error) {
+      if (signal?.aborted) throw new Error('任务已取消');
       if (controller.signal.aborted) throw new Error('资源下载超时，请检查网络后重试');
       throw error;
-    } finally { clearTimeout(timer); }
+    } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
+  }
+
+  // Cancellation keeps the execution slot occupied until its owner has cleaned up.
+  function createTask() {
+    const controller = new AbortController();
+    return {
+      signal: controller.signal,
+      cancel: () => controller.abort(),
+      check() { if (controller.signal.aborted) throw new Error('任务已取消'); },
+      async checkpoint() {
+        await new Promise(resolve => setTimeout(resolve, 0));
+        this.check();
+      }
+    };
+  }
+
+  function checkBudget(bytes, retained = 0, limit = 256 * 1024 * 1024) {
+    if (!Number.isFinite(bytes) || bytes < 0 || bytes + retained > limit) {
+      throw new Error('预计资源占用超过安全预算，请缩小尺寸、减少页数或清空结果后重试');
+    }
   }
 
   function loadScript(src, milliseconds = 15000) {
@@ -89,7 +113,7 @@
     return { ensure };
   }
 
-  const api = { withTimeout, fetchBytes, loadScript, createLoader };
+  const api = { withTimeout, fetchBytes, loadScript, createLoader, createTask, checkBudget };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ConversionRuntime = api;
 })(globalThis);

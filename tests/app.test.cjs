@@ -84,7 +84,7 @@ test('FFmpeg failure propagates and cleans both virtual files', async () => {
   api.state.fetchFile = async () => new Uint8Array([1]);
   api.state.ffmpeg = { writeFile: async () => {}, exec: async () => 1,
     deleteFile: async name => deleted.push(name) };
-  await assert.rejects(api.runFFmpeg({}, 'mp4', [], 'output.mp3', 'audio/mpeg'), /转换失败/);
+  await assert.rejects(api.runFFmpeg({ size: 1 }, 'mp4', [], 'output.mp3', 'audio/mpeg'), /转换失败/);
   assert.deepEqual(deleted.sort(), ['input.mp4', 'output.mp3']);
 });
 

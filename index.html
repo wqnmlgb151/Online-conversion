@@ -35,7 +35,10 @@
       <div id="statusText" role="status" aria-live="polite">就绪</div>
       <div id="miniLibStatus" class="flex gap-4"></div>
       <button id="retry-btn" class="hidden" type="button">重试本次操作</button>
+      <button id="cancel-btn" type="button" disabled>取消任务</button>
     </div>
+    <progress id="task-progress" class="hidden" aria-label="当前转换进度" style="width:100%;margin-bottom:16px"></progress>
+    <p class="help">任务逐项处理，可取消尚未完成的部分。取消会等待当前步骤释放资源，已完成结果保留。结果累计最多 128 MB；复杂文件可能需要缩小尺寸或分批处理。</p>
 
     <!-- Tab 导航 -->
     <nav class="flex border-b border-gray-200 mb-6" id="mainTabs" role="tablist" aria-label="转换功能">

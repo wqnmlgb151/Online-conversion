@@ -41,10 +41,17 @@
         ffmpeg: null,
         ffmpegReady: false,
         _busy: false,
+        task: null,
         get busy() { return this._busy; },
         set busy(value) {
+          if (value && !this._busy) this.task = ConversionRuntime.createTask();
+          if (!value && this.task?.signal.aborted) setStatus('任务已取消；已完成的结果仍可下载');
           this._busy = value;
           document.querySelectorAll('button, input, select').forEach(el => { el.disabled = value || el.dataset?.orderDisabled === 'true' || el.dataset?.optionDisabled === 'true'; });
+          $('cancel-btn').disabled = !value || this.task?.signal.aborted;
+          $('task-progress').classList.toggle('hidden', !value);
+          if (value) $('task-progress').removeAttribute('value');
+          if (!value) this.task = null;
           document.querySelector('main').setAttribute('aria-busy', String(value));
         },
         results: [],
@@ -55,7 +62,27 @@
 
       // ================= 工具函数 =================
       const $ = (id) => document.getElementById(id);
+      const checkTask = () => state.task?.check();
+      const checkpoint = async () => { await state.task?.checkpoint(); };
+      const retainedBytes = () => state.results.reduce((sum, result) => sum + (result.blob?.size || 0), 0);
+      const budget = bytes => ConversionRuntime.checkBudget(bytes, retainedBytes());
+      const progress = (completed, total) => {
+        checkTask();
+        $('task-progress').max = Math.max(total, 1);
+        $('task-progress').value = completed;
+      };
+      $('cancel-btn').addEventListener('click', () => {
+        if (!state.task || state.task.signal.aborted) return;
+        state.task.cancel();
+        $('cancel-btn').disabled = true;
+        if (state.ffmpeg) {
+          state.ffmpeg.terminate(); state.ffmpegReady = false;
+          state.dependencyStatus.ffmpeg = 'idle'; updateMiniStatus();
+        }
+        setStatus('正在取消并释放资源，请稍候…');
+      });
       const setStatus = msg => {
+        if (state.task?.signal.aborted && !msg.startsWith('任务已取消') && !msg.startsWith('正在取消')) return;
         $('statusText').textContent = msg;
         const failure = /失败|错误|超时/.test(msg);
         $('statusText').setAttribute('role', failure ? 'alert' : 'status');
@@ -79,7 +106,7 @@
         const list = $('results-list');
         list.replaceChildren();
         const successes = state.results.filter(result => result.blob);
-        $('results-summary').textContent = state.results.length ? `${successes.length} 个成功，${state.results.length - successes.length} 个失败 · 结果保留至清空或离开页面` : '暂无结果。结果保留至清空或离开页面。';
+        $('results-summary').textContent = state.results.length ? `${successes.length} 个成功，${state.results.length - successes.length} 个失败 · ${formatSize(retainedBytes())} / 128 MB · 结果保留至清空或离开页面` : '暂无结果。结果保留至清空或离开页面。';
         for (const result of state.results) {
           const row = document.createElement('li');
           row.className = result.blob ? 'result-row' : 'result-row result-error';
@@ -89,6 +116,11 @@
           const comparison = result.blob && result.sourceSize ? `${formatSize(result.sourceSize)} → ${formatSize(result.blob.size)} (${result.blob.size >= result.sourceSize ? '增大' : '减少'} ${Math.abs((result.blob.size / result.sourceSize - 1) * 100).toFixed(1)}%)` : formatSize(result.blob?.size || 0);
           detail.textContent = result.error || `${comparison}${result.dimensions ? ` · ${result.dimensions}` : ''}`;
           info.appendChild(detail); row.appendChild(info);
+          if (result.warnings?.length) {
+            const warning = document.createElement('p');
+            warning.className = 'help'; warning.textContent = `转换说明：${result.warnings.join('；')}`;
+            info.appendChild(warning);
+          }
           if (result.blob) { const link = document.createElement('a'); link.href = result.url; link.download = result.name; link.textContent = '下载'; row.appendChild(link); }
           const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '删除'; remove.setAttribute('aria-label', `删除结果 ${result.name}`);
           remove.disabled = state.busy;
@@ -112,7 +144,9 @@
         }
       };
       const triggerDownload = (linkEl, blob, filename, metadata = {}) => {
+        checkTask();
         if (!(blob instanceof Blob) || !blob.size) throw new Error('未生成有效文件');
+        ConversionRuntime.checkBudget(blob.size, retainedBytes(), 128 * 1024 * 1024);
         invalidateArchive();
         const url = URL.createObjectURL(blob);
         state.results.push({ id: state.nextResultId++, blob, url, name: filename, linkId: linkEl.id, ...metadata });
@@ -138,10 +172,12 @@
         if (!results.length) return setStatus('没有可下载的成功结果');
         state.busy = true;
         try {
+          budget(retainedBytes() * 2);
           await ensureLib('jszip'); setStatus('正在打包结果...');
           const zip = new JSZip(), used = new Set();
           results.forEach(result => zip.file(uniqueName(result.name, used), result.blob));
-          const blob = await zip.generateAsync({ type: 'blob' });
+          const blob = await zip.generateAsync({ type: 'blob' }, meta => progress(meta.percent, 100));
+          checkTask();
           if (state.zipURL) URL.revokeObjectURL(state.zipURL);
           state.zipURL = URL.createObjectURL(blob);
           const link = document.createElement('a'); link.href = state.zipURL; link.download = '转换结果.zip'; link.click();
@@ -159,7 +195,7 @@
           updateMiniStatus();
         }
       });
-      const ensureLib = name => loader.ensure(name);
+      const ensureLib = async name => { checkTask(); const result = await loader.ensure(name); checkTask(); return result; };
       const updateImageOptions = () => {
         const disabled = $('img-format').value === 'png';
         $('img-quality').dataset.optionDisabled = String(disabled);
@@ -186,7 +222,9 @@
           const urls = [];
           try {
             const asBlob = async (url, type) => {
-              const blobURL = URL.createObjectURL(new Blob([await fetchBytes(url, 60000, LIBS.ffmpeg.integrity[type])], { type }));
+              const bytes = await fetchBytes(url, 60000, LIBS.ffmpeg.integrity[type], state.task?.signal);
+              checkTask();
+              const blobURL = URL.createObjectURL(new Blob([bytes], { type }));
               urls.push(blobURL);
               return blobURL;
             };
@@ -195,6 +233,7 @@
               wasmURL: await asBlob(LIBS.ffmpeg.core.replace(/\.js$/, '.wasm'), 'application/wasm')
             }), 45000, '引擎初始化超时', () => state.ffmpeg?.terminate());
           } finally { urls.forEach(url => URL.revokeObjectURL(url)); }
+          checkTask();
           state.ffmpegReady = true;
           state.dependencyStatus.ffmpeg = 'success';
           state.fetchFile = async file => new Uint8Array(await file.arrayBuffer());
@@ -241,6 +280,7 @@
       const outputName = (name, ext) => name.replace(/\.[^.]+$/, '') + '.' + ext;
       const escapeHTML = text => text.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
       const loadImage = async (img, file) => {
+        checkTask();
         const url = URL.createObjectURL(file);
         try {
           await withTimeout(new Promise((resolve, reject) => {
@@ -248,7 +288,9 @@
             img.onerror = () => reject(new Error('图片无法解码，请选择有效图片'));
             img.src = url;
           }), 15000, '图片解码超时，请选择较小图片');
+          checkTask();
           if (img.naturalWidth * img.naturalHeight > 40000000) throw new Error('图片超过 4000 万像素');
+          budget(img.naturalWidth * img.naturalHeight * 8);
         } finally { URL.revokeObjectURL(url); }
       };
       // Validate before expensive decoding and give immediate feedback.
@@ -366,11 +408,13 @@
           const width = readDimension($('img-width').value), height = readDimension($('img-height').value);
           let succeeded = 0, lastError = '';
           for (const [index, file] of files.entries()) {
+            await checkpoint(); progress(index, files.length);
             setStatus(`转换图片 ${index + 1}/${files.length}`);
             const canvas = document.createElement('canvas');
             try {
               const img = new Image(); await loadImage(img, file);
               const dimensions = resizeDimensions(img.naturalWidth, img.naturalHeight, width, height, $('img-ratio').checked);
+              budget(img.naturalWidth * img.naturalHeight * 4 + dimensions.width * dimensions.height * 8);
               canvas.width = dimensions.width; canvas.height = dimensions.height;
               const ctx = canvas.getContext('2d');
               if (fmt === 'jpeg') { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
@@ -380,6 +424,7 @@
               triggerDownload($('img-link'), blob, outputName(file.name, fmt === 'jpeg' ? 'jpg' : fmt), { sourceSize: file.size, dimensions: `${img.naturalWidth} × ${img.naturalHeight} → ${canvas.width} × ${canvas.height}` });
               succeeded++;
             } catch (error) {
+              checkTask();
               lastError = `转换失败: ${error.message || error}`;
               state.results.push({ id: state.nextResultId++, name: file.name, error: lastError }); renderResults();
             } finally { canvas.width = canvas.height = 0; }
@@ -424,12 +469,16 @@
 
       // 通用 FFmpeg 处理
       const runFFmpeg = async (file, ext, args, outName, mime) => {
+        budget(file.size * 3 + 64 * 1024 * 1024);
         if (!(await initFFmpeg())) return;
         const { ffmpeg, fetchFile } = state;
+        const onProgress = event => { if (!state.task?.signal.aborted) progress(Math.max(0, Math.min(0.99, event.progress)), 1); };
+        ffmpeg.on?.('progress', onProgress);
         
         const inName = `input.${ext}`;
         try {
           await withTimeout(ffmpeg.writeFile(inName, await fetchFile(file)), 15000, '写入引擎超时', () => { ffmpeg.terminate(); state.ffmpegReady = false; });
+          checkTask();
           const code = await withTimeout(ffmpeg.exec(args, 120000), 125000, '转换超时，请尝试更短的文件', () => {
             ffmpeg.terminate(); state.ffmpegReady = false;
           });
@@ -437,6 +486,7 @@
           const data = await withTimeout(ffmpeg.readFile(outName), 15000, '读取结果超时', () => { ffmpeg.terminate(); state.ffmpegReady = false; });
           return new Blob([data], { type: mime });
         } finally {
+          ffmpeg.off?.('progress', onProgress);
           if (state.ffmpegReady) {
             const cleanup = await Promise.allSettled([inName, outName].map(name =>
               withTimeout(ffmpeg.deleteFile(name), 3000, '清理超时')));
@@ -538,24 +588,43 @@
         container.style.cssText = 'position:absolute;left:-10000px;top:0;width:714px;padding:32px;background:white;color:black;font:16px/1.6 sans-serif;overflow-wrap:anywhere';
         container.querySelectorAll('pre').forEach(el => { el.style.whiteSpace = 'pre-wrap'; });
         document.body.appendChild(container);
+        let canvas;
         try {
           await document.fonts.ready;
+          await checkpoint();
           if (container.scrollHeight > 20000) throw new Error('文档过长，请导出 HTML 后使用浏览器打印为 PDF');
-          const canvas = await html2canvas(container, { scale: 1.5, backgroundColor: '#fff' });
+          budget(container.scrollWidth * container.scrollHeight * 1.5 * 1.5 * 12);
+          canvas = await html2canvas(container, { scale: 1.5, backgroundColor: '#fff' });
           const pdf = new jspdf.jsPDF();
           const pageHeight = Math.floor(canvas.width * 277 / 190);
-          for (let y = 0; y < canvas.height; y += pageHeight) {
+          for (let y = 0; y < canvas.height;) {
+            await checkpoint(); progress(y, canvas.height);
             if (y) pdf.addPage();
             const slice = document.createElement('canvas');
             slice.width = canvas.width;
             slice.height = Math.min(pageHeight, canvas.height - y);
+            // Prefer a blank scanline near the page end to avoid cutting text in half.
+            if (y + slice.height < canvas.height) {
+              const searchHeight = Math.min(120, slice.height);
+              const start = y + slice.height - searchHeight;
+              const pixels = canvas.getContext('2d').getImageData(0, start, canvas.width, searchHeight).data;
+              for (let row = searchHeight - 1; row >= 0; row--) {
+                let blank = true;
+                for (let x = 0; x < canvas.width; x++) {
+                  const offset = (row * canvas.width + x) * 4;
+                  if (pixels[offset] < 245 || pixels[offset + 1] < 245 || pixels[offset + 2] < 245) { blank = false; break; }
+                }
+                if (blank) { slice.height = start + row + 1 - y; break; }
+              }
+            }
+            try {
             slice.getContext('2d').drawImage(canvas, 0, y, canvas.width, slice.height, 0, 0, canvas.width, slice.height);
             pdf.addImage(slice, 'PNG', 10, 10, 190, slice.height * 190 / canvas.width);
-            slice.width = slice.height = 0;
+            y += slice.height;
+            } finally { slice.width = slice.height = 0; }
           }
-          canvas.width = canvas.height = 0;
           return pdf.output('blob');
-        } finally { container.remove(); }
+        } finally { if (canvas) canvas.width = canvas.height = 0; container.remove(); }
       };
 
       // 4. 文档转换
@@ -571,6 +640,11 @@
         const target = $('doc-format').value;
         let blob = null;
         let filename = outputName(file.name, target);
+        const warnings = [];
+        if (ext === 'xlsx') warnings.push('仅导出首个工作表，公式保留缓存值');
+        if (ext === 'docx') warnings.push('仅提取内容，不保留原始版式、图片和链接');
+        if (ext === 'md' && target !== 'txt') warnings.push('图片、链接及嵌入内容会被过滤');
+        if (target === 'pdf') warnings.push('图片式 PDF，文字不可搜索或复制');
 
         try {
           if (!['xlsx','docx','md','txt'].includes(ext)) throw new Error('请选择 XLSX、DOCX、Markdown 或 TXT 文件');
@@ -599,9 +673,11 @@
             if (!(await ensureLib('mammoth'))) return;
             if (target === 'txt') {
               const raw = await mammoth.extractRawText({ arrayBuffer: buf });
+              warnings.push(...raw.messages.map(message => message.message));
               blob = new Blob([raw.value], {type: 'text/plain;charset=utf-8'});
             } else {
             const result = await mammoth.convertToHtml({ arrayBuffer: buf });
+            warnings.push(...result.messages.map(message => message.message));
             const html = await sanitize(result.value);
             
             if (target === 'html') {
@@ -625,7 +701,7 @@
           }
 
           if (blob) {
-            triggerDownload($('doc-link'), blob, filename);
+            triggerDownload($('doc-link'), blob, filename, { warnings });
             setStatus("转换完成");
           } else {
             setStatus("不支持的转换格式");
@@ -656,12 +732,16 @@
             const { jsPDF } = jspdf;
             const pdf = new jsPDF();
             const imgs = files;
+            let mergedBytes = 0;
             if (!imgs.every(f => f.type.startsWith('image/'))) throw new Error('图片合并只能选择图片文件');
             
             for(let i=0; i<imgs.length; i++) {
+              await checkpoint(); progress(i, imgs.length);
               setStatus(`添加图片 ${i+1}/${imgs.length}`);
               const img = new Image();
               await loadImage(img, imgs[i]);
+              mergedBytes += img.naturalWidth * img.naturalHeight * 4;
+              budget(mergedBytes * 2);
               
               if(i>0) pdf.addPage();
               const pw = pdf.internal.pageSize.getWidth();
@@ -670,10 +750,11 @@
               const w = img.width * ratio;
               const h = img.height * ratio;
               const imageCanvas = document.createElement('canvas');
+              try {
               imageCanvas.width = img.naturalWidth; imageCanvas.height = img.naturalHeight;
               imageCanvas.getContext('2d').drawImage(img, 0, 0);
               pdf.addImage(imageCanvas, 'PNG', (pw-w)/2, (ph-h)/2, w, h);
-              imageCanvas.width = imageCanvas.height = 0;
+              } finally { imageCanvas.width = imageCanvas.height = 0; }
             }
             blob = pdf.output('blob');
             filename = "合并.pdf";
@@ -696,12 +777,14 @@
               let text = "";
               let characters = 0;
               for (const [index, i] of pages.entries()) {
+                await checkpoint(); progress(index, pages.length);
                 setStatus(`提取文本 ${index + 1}/${pages.length}（第 ${i} 页）`);
                 const page = await pdf.getPage(i);
                 const content = await page.getTextContent();
                 characters += content.items.reduce((count, item) => count + (item.str || '').trim().length, 0);
                 text += `--- Page ${i} ---\n`;
                 text += content.items.map(it => it.str + (it.hasEOL ? '\n' : ' ')).join('') + '\n';
+                budget(text.length * 4);
                 page.cleanup();
               }
               if (!characters) throw new Error('未提取到文字：文件可能是扫描版，本工具不提供 OCR');
@@ -710,25 +793,36 @@
             } 
             else if (action === 'to-img') {
               const zip = new JSZip();
+              let zipBytes = 0;
               if (pages.length > 50) throw new Error('PDF 转图片最多支持 50 页，请填写页码选择部分页面');
               for (const [index, i] of pages.entries()) {
+                await checkpoint(); progress(index, pages.length);
                 setStatus(`渲染图片 ${index + 1}/${pages.length}（第 ${i} 页）`);
                 const page = await pdf.getPage(i);
                 const scale = 2;
                 const viewport = page.getViewport({scale});
                 if (viewport.width * viewport.height > 40000000) throw new Error('PDF 页面超过 4000 万像素，无法安全渲染');
+                budget(zipBytes * 2 + viewport.width * viewport.height * 8);
                 const canvas = document.createElement('canvas');
                 canvas.width = viewport.width;
                 canvas.height = viewport.height;
-                await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
+                try {
+                const renderTask = page.render({canvasContext: canvas.getContext('2d'), viewport});
+                const cancelRender = () => renderTask.cancel();
+                state.task?.signal.addEventListener('abort', cancelRender, { once: true });
+                try { await renderTask.promise; checkTask(); }
+                finally { state.task?.signal.removeEventListener('abort', cancelRender); }
                 
                 const imgBlob = await new Promise(r => canvas.toBlob(r, 'image/png'));
                 if (!imgBlob) throw new Error('页面图片生成失败');
+                zipBytes += imgBlob.size; budget(zipBytes * 3);
                 zip.file(`page_${i}.png`, imgBlob);
+                } finally {
                 canvas.width = canvas.height = 0;
                 page.cleanup();
+                }
               }
-              blob = await zip.generateAsync({type: 'blob'});
+              blob = await zip.generateAsync({type: 'blob'}, meta => progress(meta.percent, 100));
               filename = outputName(pdfFile.name, 'zip');
             }
             } finally { await loadingTask.destroy(); }

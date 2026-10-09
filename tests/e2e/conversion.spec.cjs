@@ -233,6 +233,23 @@ test.describe('real FFmpeg conversion', () => {
     await expect(page.locator('#aud-btn')).toBeEnabled();
     await expect(page.locator('#statusText')).toHaveText('转换完成');
   });
+  test('cancel engine download then initialize and convert successfully', async ({page}) => {
+    await open(page, 'audio');
+    let heldRoute;
+    await page.route('**/ffmpeg-core.js', route => { heldRoute = route; });
+    await page.locator('#aud-input').setInputFiles({ name: 'tone.wav', mimeType: 'audio/wav', buffer: fixture.wav() });
+    await page.locator('#aud-btn').click();
+    await expect.poll(() => !!heldRoute).toBe(true);
+    await page.locator('#cancel-btn').click();
+    await expect(page.locator('#aud-btn')).toBeEnabled();
+    await expect(page.locator('#statusText')).toContainText('任务已取消');
+    await expect(page.locator('#results-list a')).toHaveCount(0);
+    await heldRoute.abort();
+    await page.unroute('**/ffmpeg-core.js');
+    await page.locator('#aud-btn').click();
+    await expect(page.locator('#statusText')).toHaveText('转换完成');
+    await expect(page.locator('#results-list a')).toHaveCount(1);
+  });
   test('corrupt audio fails and valid audio works on the same page', async ({page}) => {
     await open(page,'audio');
     await page.locator('#aud-input').setInputFiles({name:'broken.wav',mimeType:'audio/wav',buffer:Buffer.from('not audio')});

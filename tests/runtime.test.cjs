@@ -2,6 +2,36 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { createLoader, withTimeout, fetchBytes } = require('../runtime.js');
 
+test('cancellation is terminal for one task and does not affect the next task', async () => {
+  const { createTask } = require('../runtime.js');
+  const task = createTask();
+  task.cancel(); task.cancel();
+  assert.throws(() => task.check(), /取消/);
+  await assert.rejects(task.checkpoint(), /取消/);
+  await createTask().checkpoint();
+});
+
+test('budget counts retained results and rejects invalid estimates', () => {
+  const { checkBudget } = require('../runtime.js');
+  checkBudget(60, 40, 100);
+  assert.throws(() => checkBudget(61, 40, 100), /预算/);
+  assert.throws(() => checkBudget(NaN), /预算/);
+  assert.throws(() => checkBudget(-1), /预算/);
+});
+
+test('engine download accepts caller cancellation', async () => {
+  const original = global.fetch;
+  global.fetch = async (_, options) => new Promise((resolve, reject) => {
+    options.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+  });
+  try {
+    const controller = new AbortController();
+    const pending = fetchBytes('https://example.test/core', 10000, undefined, controller.signal);
+    controller.abort();
+    await assert.rejects(pending, /任务已取消/);
+  } finally { global.fetch = original; }
+});
+
 test('concurrent dependency requests share one load', async () => {
   const globals = {};
   let loads = 0;
