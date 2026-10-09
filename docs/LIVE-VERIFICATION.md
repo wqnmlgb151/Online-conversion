@@ -1,5 +1,18 @@
 # Cloudflare Pages 线上验收
 
+## 2026-10-09：后续网络与功能复查
+
+- 首页 HTTP 200，已部署版本仍为 3A（`533d535`）；下述线上测试不代表尚未发布的 3B/3C。
+- 图片批量、Office、PDF、恢复与布局共 14 项线上用例通过。音视频首次运行的测试产物因本地测试清理父目录而丢失；已隔离本地/线上输出目录。
+- 音视频独立复验明确失败：页面提示“FFmpeg 初始化失败：资源下载超时”。真实 CDN 音视频仍未通过；本地使用校验缓存的音视频用例全部通过。
+- 最新单项线上报告保存在 `.test-cache/live-results.json`、`playwright-report/live`；真实设备未连接，不宣称实体手机验收完成。
+
+## 2026-10-09：3A 发布复核
+
+- 已推送 `533d535` 至 `main`；GitHub Actions verify 与 Cloudflare Pages 部署检查均为 success。
+- 本次线上 Chrome 验收 15 项中 1 项通过、14 项失败，多数为打开站点时 `net::ERR_TIMED_OUT`。独立 HTTP 请求亦在 20 秒超时。本次不能确认完整线上功能验收通过，不能将部署成功等同于访问和转换均正常。
+- 线上测试报告保存在忽略目录 `.test-cache/live-results.json`、`playwright-report/live`；后续网络恢复后再运行 `npm run test:live`。3B 队列目前仅本地验收，尚未部署。
+
 日期：2026-10-07（Asia/Shanghai）。地址：https://online-conversion.pages.dev/。
 
 ## 发布与 GitHub 展示

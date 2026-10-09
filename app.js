@@ -47,17 +47,19 @@
           if (value && !this._busy) this.task = ConversionRuntime.createTask();
           if (!value && this.task?.signal.aborted) setStatus('任务已取消；已完成的结果仍可下载');
           this._busy = value;
-          document.querySelectorAll('button, input, select').forEach(el => { el.disabled = value || el.dataset?.orderDisabled === 'true' || el.dataset?.optionDisabled === 'true'; });
+          // Forms stay editable: running conversions read their submitted snapshots.
+          document.querySelectorAll('[data-result-mutation], #results-zip, #results-clear, #retry-btn').forEach(el => { el.disabled = value; });
           $('cancel-btn').disabled = !value || this.task?.signal.aborted;
           $('task-progress').classList.toggle('hidden', !value);
           if (value) $('task-progress').removeAttribute('value');
           if (!value) this.task = null;
-          document.querySelector('main').setAttribute('aria-busy', String(value));
+          $('task-progress').setAttribute('aria-busy', String(value));
         },
         results: [],
         nextResultId: 1,
         selectedFiles: {},
-        zipURL: null
+        zipURL: null,
+        archiveBytes: 0
       };
 
       // ================= 工具函数 =================
@@ -65,7 +67,7 @@
       const checkTask = () => state.task?.check();
       const checkpoint = async () => { await state.task?.checkpoint(); };
       const retainedBytes = () => state.results.reduce((sum, result) => sum + (result.blob?.size || 0), 0);
-      const budget = bytes => ConversionRuntime.checkBudget(bytes, retainedBytes());
+      const budget = bytes => ConversionRuntime.checkBudget(bytes, retainedBytes() + state.archiveBytes);
       const progress = (completed, total) => {
         checkTask();
         $('task-progress').max = Math.max(total, 1);
@@ -94,11 +96,71 @@
         state.results = [];
         if (state.zipURL) URL.revokeObjectURL(state.zipURL);
         state.zipURL = null;
+        state.archiveBytes = 0;
         ['img-down','vid-down','aud-down','doc-down','pdf-down'].forEach(id => $(id).classList.add('hidden'));
+      };
+
+      const labels = { img: '图片', vid: '视频', aud: '音频', doc: '文档', pdf: 'PDF' };
+      const renderQueue = entries => {
+        const waiting = entries.filter(job => job.status === 'waiting').length;
+        const running = entries.some(job => job.status === 'running');
+        $('queue-summary').textContent = `${running ? '正在处理 1 个任务' : '当前空闲'} · 等待 ${waiting} 个任务`;
+        $('queue-clear').disabled = !waiting;
+        $('queue-list').replaceChildren();
+        const names = { waiting: '等待中', running: '处理中', done: '已完成', failed: '有失败项', cancelled: '已取消' };
+        for (const job of entries) {
+          const row = document.createElement('li');
+          const text = document.createElement('span');
+          text.textContent = `#${job.id} ${job.label} · ${names[job.status]}${job.message ? `：${job.message}` : ''}`;
+          row.appendChild(text);
+          if (job.status === 'waiting') {
+            const remove = document.createElement('button'); remove.type = 'button';
+            remove.textContent = '移除'; remove.setAttribute('aria-label', `移除任务 ${job.id}`);
+            remove.addEventListener('click', () => queue.remove(job.id)); row.appendChild(remove);
+          }
+          $('queue-list').appendChild(row);
+        }
+      };
+      const queue = ConversionRuntime.createQueue({ onChange: renderQueue });
+      $('queue-clear').addEventListener('click', () => queue.clearPending());
+      const snapshot = prefix => {
+        const files = Array.from(state.selectedFiles[`${prefix}-input`] || $(`${prefix}-input`).files);
+        if (!files.length) throw new Error('请先选择文件');
+        const ids = {
+          img: ['img-format', 'img-quality', 'img-width', 'img-height', 'img-ratio'],
+          vid: ['vid-format'], aud: ['aud-format'], doc: ['doc-format'], pdf: ['pdf-action', 'pdf-pages']
+        }[prefix];
+        const options = Object.fromEntries(ids.map(id => [id, id === 'img-ratio' ? $(id).checked : $(id).value]));
+        return Object.freeze({ files: Object.freeze(files), options: Object.freeze(options) });
+      };
+      const registerConversion = (prefix, handler) => {
+        $(`${prefix}-btn`).addEventListener('click', () => {
+          try {
+            const submitted = snapshot(prefix);
+            const target = submitted.options[`${prefix}-format`] || submitted.options['pdf-action'];
+            const job = queue.add({
+              label: `${labels[prefix]} · ${submitted.files[0].name}${submitted.files.length > 1 ? ` 等 ${submitted.files.length} 个文件` : ''} → ${target}`,
+              bytes: submitted.files.reduce((sum, file) => sum + file.size, 0)
+            }, async () => {
+              state.busy = true; state.lastAction = `${prefix}-btn`;
+              try {
+                const outcome = await handler(submitted);
+                return state.task.signal.aborted ? 'cancelled' : outcome;
+              } catch (error) {
+                if (state.task.signal.aborted) return 'cancelled';
+                setStatus(`转换失败: ${error.message || error}`);
+                return { status: 'failed', message: error.message || String(error) };
+              } finally { state.busy = false; }
+            });
+            $('queue-notice').textContent = `任务 #${job.id} 已提交，使用提交时的文件与设置`;
+            return job.done;
+          } catch (error) { $('queue-notice').textContent = error.message; if (!state.busy) setStatus(error.message); }
+        });
       };
       const invalidateArchive = () => {
         if (state.zipURL) URL.revokeObjectURL(state.zipURL);
         state.zipURL = null;
+        state.archiveBytes = 0;
       };
 
       const formatSize = bytes => bytes < 1024 ? `${bytes} B` : bytes < 1048576 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1048576).toFixed(1)} MB`;
@@ -123,6 +185,7 @@
           }
           if (result.blob) { const link = document.createElement('a'); link.href = result.url; link.download = result.name; link.textContent = '下载'; row.appendChild(link); }
           const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '删除'; remove.setAttribute('aria-label', `删除结果 ${result.name}`);
+          remove.dataset.resultMutation = 'true';
           remove.disabled = state.busy;
           remove.addEventListener('click', () => {
             if (state.busy) return;
@@ -170,8 +233,10 @@
         state.lastAction = 'results-zip';
         const results = state.results.filter(result => result.blob);
         if (!results.length) return setStatus('没有可下载的成功结果');
+        const job = queue.add({ label: `打包 ${results.length} 个结果 → ZIP`, bytes: 0 }, async () => {
         state.busy = true;
         try {
+          invalidateArchive();
           budget(retainedBytes() * 2);
           await ensureLib('jszip'); setStatus('正在打包结果...');
           const zip = new JSZip(), used = new Set();
@@ -180,10 +245,16 @@
           checkTask();
           if (state.zipURL) URL.revokeObjectURL(state.zipURL);
           state.zipURL = URL.createObjectURL(blob);
+          state.archiveBytes = blob.size;
           const link = document.createElement('a'); link.href = state.zipURL; link.download = '转换结果.zip'; link.click();
           setStatus(`已打包 ${results.length} 个结果`);
-        } catch (error) { setStatus(`打包失败: ${error.message || error}`); }
+        } catch (error) {
+          setStatus(`打包失败: ${error.message || error}`);
+          return state.task.signal.aborted ? 'cancelled' : { status: 'failed', message: error.message || String(error) };
+        }
         finally { state.busy = false; }
+        });
+        return job.done;
       });
 
       const { withTimeout, fetchBytes, createLoader } = ConversionRuntime;
@@ -199,12 +270,9 @@
       const updateImageOptions = () => {
         const disabled = $('img-format').value === 'png';
         $('img-quality').dataset.optionDisabled = String(disabled);
-        $('img-quality').disabled = state.busy || disabled;
+        $('img-quality').disabled = disabled;
       };
       $('img-format').addEventListener('change', updateImageOptions);
-      ['img','vid','aud','doc','pdf'].forEach(prefix => {
-        $(`${prefix}-btn`).addEventListener('click', () => { state.lastAction = `${prefix}-btn`; });
-      });
       $('retry-btn').addEventListener('click', () => {
         if (!state.busy && state.lastAction) $(state.lastAction).click();
       });
@@ -307,7 +375,6 @@
               button.setAttribute('aria-label', `${text} ${file.name}`); button.disabled = index + offset < 0 || index + offset >= files.length;
               button.dataset.orderDisabled = String(button.disabled);
               button.addEventListener('click', () => {
-                if (state.busy) return;
                 const destination = index + offset;
                 [files[index], files[destination]] = [files[destination], files[index]];
                 renderFiles(input);
@@ -319,23 +386,24 @@
       };
       document.querySelectorAll('input[type=file]').forEach(input => {
         input.addEventListener('change', () => {
+          const selectionStatus = message => { if (state.busy) $('queue-notice').textContent = message; else setStatus(message); };
           const files = Array.from(input.files);
           const limit = ['vid-input','aud-input'].includes(input.id) ? 200 : 30;
           if (files.length > 100 || files.some(file => !file.size || file.size > limit * 1024 * 1024) || files.reduce((n, file) => n + file.size, 0) > 200 * 1024 * 1024) {
             input.value = '';
             state.selectedFiles[input.id] = [];
-            setStatus(`文件不能为空，单个文件最多 ${limit} MB，总大小最多 200 MB，每批最多 100 个文件`);
-          } else { state.selectedFiles[input.id] = files; setStatus(files.length ? `已选择 ${files.length} 个文件` : '就绪'); }
+            selectionStatus(`文件不能为空，单个文件最多 ${limit} MB，总大小最多 200 MB，每批最多 100 个文件`);
+          } else { state.selectedFiles[input.id] = files; selectionStatus(files.length ? `已选择 ${files.length} 个文件` : '就绪'); }
           if (['img-input','pdf-input'].includes(input.id)) renderFiles(input);
           if (input.id === 'doc-input') updateDocFormats();
         });
       });
       document.querySelectorAll('.drop-zone').forEach(zone => {
-        zone.addEventListener('dragover', event => { event.preventDefault(); if (!state.busy) zone.classList.add('drag-over'); });
+        zone.addEventListener('dragover', event => { event.preventDefault(); zone.classList.add('drag-over'); });
         zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
         zone.addEventListener('drop', event => {
           event.preventDefault(); zone.classList.remove('drag-over');
-          if (state.busy || !event.dataTransfer?.files.length) return;
+          if (!event.dataTransfer?.files.length) return;
           const input = $(zone.dataset.input), transfer = new DataTransfer();
           for (const file of event.dataTransfer.files) transfer.items.add(file);
           input.files = transfer.files; input.dispatchEvent(new Event('change', { bubbles: true }));
@@ -356,12 +424,15 @@
         for (const option of $('doc-format').options) option.disabled = ['json','csv'].includes(option.value) && !excel;
         if ($('doc-format').selectedOptions[0].disabled) $('doc-format').value = 'pdf';
       };
-      window.addEventListener('pagehide', () => { clearBlob(); refreshDownloadLinks(); renderResults(); });
+      window.addEventListener('pagehide', () => {
+        queue.clearPending();
+        if (state.task) $('cancel-btn').click();
+        clearBlob(); refreshDownloadLinks(); renderResults();
+      });
 
       // ================= Tab 切换 =================
       document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-          if (state.busy) return;
           // UI 更新
           document.querySelectorAll('.tab-btn').forEach(b => {
             b.classList.remove('border-blue-600', 'text-blue-600');
@@ -378,10 +449,10 @@
           const tab = btn.dataset.tab;
           document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden-tab'));
           $(`panel-${tab}`).classList.remove('hidden-tab');
-          setStatus("就绪");
+          if (!state.busy) setStatus("就绪");
         });
         btn.addEventListener('keydown', event => {
-          if (state.busy || !['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+          if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
           event.preventDefault();
           const tabs = Array.from(document.querySelectorAll('.tab-btn'));
           const index = tabs.indexOf(btn);
@@ -393,19 +464,16 @@
       // ================= 功能实现 =================
 
       // 1. 图片转换
-      $('img-btn').addEventListener('click', async () => {
-        if (state.busy) return;
-        const files = state.selectedFiles['img-input'] || Array.from($('img-input').files);
+      registerConversion('img', async ({ files, options }) => {
         if (!files.length) return setStatus("请先选择图片");
         
-        state.busy = true;
         setStatus("处理中...");
 
         try {
-          const fmt = $('img-format').value;
-          const quality = fmt === 'png' ? 1 : parseFloat($('img-quality').value);
+          const fmt = options['img-format'];
+          const quality = fmt === 'png' ? 1 : parseFloat(options['img-quality']);
           if (!Number.isFinite(quality) || quality < 0.1 || quality > 1) throw new Error('质量必须在 0.1 至 1 之间');
-          const width = readDimension($('img-width').value), height = readDimension($('img-height').value);
+          const width = readDimension(options['img-width']), height = readDimension(options['img-height']);
           let succeeded = 0, lastError = '';
           for (const [index, file] of files.entries()) {
             await checkpoint(); progress(index, files.length);
@@ -413,7 +481,7 @@
             const canvas = document.createElement('canvas');
             try {
               const img = new Image(); await loadImage(img, file);
-              const dimensions = resizeDimensions(img.naturalWidth, img.naturalHeight, width, height, $('img-ratio').checked);
+              const dimensions = resizeDimensions(img.naturalWidth, img.naturalHeight, width, height, options['img-ratio']);
               budget(img.naturalWidth * img.naturalHeight * 4 + dimensions.width * dimensions.height * 8);
               canvas.width = dimensions.width; canvas.height = dimensions.height;
               const ctx = canvas.getContext('2d');
@@ -430,10 +498,10 @@
             } finally { canvas.width = canvas.height = 0; }
           }
           setStatus(`转换完成：${succeeded} 个成功${lastError ? `，${files.length - succeeded} 个失败 · ${lastError}` : ''}`);
+          return lastError ? 'failed' : 'done';
         } catch (e) {
           setStatus("转换失败: " + (e?.message || String(e)));
-        } finally {
-          state.busy = false;
+          throw e;
         }
       });
 
@@ -499,16 +567,14 @@
       };
 
       // 2. 视频转换
-      $('vid-btn').addEventListener('click', async () => {
-        if (state.busy) return;
-        const file = $('vid-input').files[0];
+      registerConversion('vid', async ({ files, options }) => {
+        const file = files[0];
         if (!file) return setStatus("请先选择视频");
         
-        state.busy = true;
         setStatus("准备中...");
 
         try {
-          const fmt = $('vid-format').value;
+          const fmt = options['vid-format'];
           const ext = file.name.split('.').pop();
           const outFile = 'output.' + (fmt === 'mp3' ? 'mp3' : fmt);
           const mime = { mp3: 'audio/mpeg', gif: 'image/gif', mp4: 'video/mp4', webm: 'video/webm' }[fmt];
@@ -532,22 +598,19 @@
           setStatus("转换完成");
         } catch (e) {
           setStatus("失败: " + (e?.message || String(e)));
-        } finally {
-          state.busy = false;
+          throw e;
         }
       });
 
       // 3. 音频转换
-      $('aud-btn').addEventListener('click', async () => {
-        if (state.busy) return;
-        const file = $('aud-input').files[0];
+      registerConversion('aud', async ({ files, options }) => {
+        const file = files[0];
         if (!file) return setStatus("请先选择音频");
         
-        state.busy = true;
         setStatus("准备中...");
 
         try {
-          const fmt = $('aud-format').value;
+          const fmt = options['aud-format'];
           const ext = file.name.split('.').pop();
           const outFile = 'output.' + fmt;
           const mimeMap = { mp3: 'audio/mpeg', wav: 'audio/wav', flac: 'audio/flac', m4a: 'audio/mp4' };
@@ -566,8 +629,7 @@
           setStatus("转换完成");
         } catch (e) {
           setStatus("失败: " + (e?.message || String(e)));
-        } finally {
-          state.busy = false;
+          throw e;
         }
       });
 
@@ -628,16 +690,14 @@
       };
 
       // 4. 文档转换
-      $('doc-btn').addEventListener('click', async () => {
-        if (state.busy) return;
-        const file = $('doc-input').files[0];
+      registerConversion('doc', async ({ files, options }) => {
+        const file = files[0];
         if (!file) return setStatus("请先选择文档");
         
-        state.busy = true;
         setStatus("处理中...");
 
         const ext = file.name.split('.').pop().toLowerCase();
-        const target = $('doc-format').value;
+        const target = options['doc-format'];
         let blob = null;
         let filename = outputName(file.name, target);
         const warnings = [];
@@ -708,21 +768,17 @@
           }
         } catch (e) {
           setStatus("失败: " + (e?.message || String(e)));
-        } finally {
-          state.busy = false;
+          throw e;
         }
       });
 
       // 5. PDF 处理
-      $('pdf-btn').addEventListener('click', async () => {
-        if (state.busy) return;
-        const files = state.selectedFiles['pdf-input'] || Array.from($('pdf-input').files);
+      registerConversion('pdf', async ({ files, options }) => {
         if (files.length === 0) return setStatus("请先选择文件");
         
-        state.busy = true;
         setStatus("处理中...");
 
-        const action = $('pdf-action').value;
+        const action = options['pdf-action'];
         let blob = null;
         let filename = "output";
 
@@ -771,7 +827,7 @@
             const loadingTask = pdfjsLib.getDocument({data: buf, isEvalSupported: false});
             try {
             const pdf = await loadingTask.promise;
-            const pages = parsePages($('pdf-pages').value, pdf.numPages);
+            const pages = parsePages(options['pdf-pages'], pdf.numPages);
 
             if (action === 'to-txt') {
               let text = "";
@@ -834,8 +890,7 @@
           }
         } catch (e) {
           setStatus("失败: " + (e?.message || String(e)));
-        } finally {
-          state.busy = false;
+          throw e;
         }
       });
 
@@ -845,5 +900,6 @@
       updateDocFormats();
       updateImageOptions();
       renderResults();
+      renderQueue([]);
 
     })();

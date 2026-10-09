@@ -34,11 +34,16 @@
     <div id="statusBar" class="mb-6 p-3 bg-white rounded-lg shadow-sm border border-gray-200 flex justify-between items-center text-sm">
       <div id="statusText" role="status" aria-live="polite">就绪</div>
       <div id="miniLibStatus" class="flex gap-4"></div>
-      <button id="retry-btn" class="hidden" type="button">重试本次操作</button>
+      <button id="retry-btn" class="hidden" type="button">使用当前选择重试</button>
       <button id="cancel-btn" type="button" disabled>取消任务</button>
     </div>
     <progress id="task-progress" class="hidden" aria-label="当前转换进度" style="width:100%;margin-bottom:16px"></progress>
-    <p class="help">任务逐项处理，可取消尚未完成的部分。取消会等待当前步骤释放资源，已完成结果保留。结果累计最多 128 MB；复杂文件可能需要缩小尺寸或分批处理。</p>
+    <p class="help">转换时可切换功能、修改设置并继续提交；已提交任务使用当时的文件与设置。取消只停止当前任务，等待任务继续执行。结果累计最多 128 MB。</p>
+    <section class="task-queue" aria-labelledby="queue-title">
+      <div class="results-heading"><div><h2 id="queue-title">任务队列</h2><p id="queue-summary" role="status">当前空闲 · 等待 0 个任务</p></div><button id="queue-clear" type="button" disabled>清空等待任务</button></div>
+      <p id="queue-notice" role="status" class="help">最多等待 8 个任务，运行与等待输入合计最多 200 MB。最近 20 条任务记录仅保存在当前页面。</p>
+      <ol id="queue-list" aria-label="任务列表"></ol>
+    </section>
 
     <!-- Tab 导航 -->
     <nav class="flex border-b border-gray-200 mb-6" id="mainTabs" role="tablist" aria-label="转换功能">

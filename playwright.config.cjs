@@ -6,7 +6,8 @@ module.exports = defineConfig({
   expect: { timeout: 90000 },
   workers: 1,
   fullyParallel: false,
-  reporter: [['list'], ['html', { open: 'never' }]],
+  outputDir: 'test-results/local',
+  reporter: [['list'], ['html', { outputFolder: 'playwright-report/local', open: 'never' }]],
   use: {
     channel: 'chrome',
     baseURL: 'http://127.0.0.1:8080',

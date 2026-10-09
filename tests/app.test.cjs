@@ -28,7 +28,7 @@ function setup() {
     Image: class { set src(value) { this.onerror(); } }
   };
   const source = fs.readFileSync('app.js', 'utf8').replace('    })();',
-    'globalThis.api = { state, outputName, escapeHTML, runFFmpeg, loadImage, parsePages, resizeDimensions, readDimension, uniqueName }; })();');
+    'globalThis.api = { state, budget, clearBlob, outputName, escapeHTML, runFFmpeg, loadImage, parsePages, resizeDimensions, readDimension, uniqueName }; })();');
   vm.runInNewContext(source, context);
   return { ...context, el };
 }
@@ -42,6 +42,15 @@ test('output naming handles uppercase extensions and extensionless names', () =>
 test('plain text escapes executable HTML', () => {
   const { api } = setup();
   assert.equal(api.escapeHTML('<img src="x" onerror=alert(1)>&'), '&lt;img src=&quot;x&quot; onerror=alert(1)&gt;&amp;');
+});
+
+test('working budget counts retained ZIP and clearing releases its reservation', () => {
+  const { api } = setup();
+  api.state.archiveBytes = 80 * 1024 * 1024;
+  assert.throws(() => api.budget(200 * 1024 * 1024), /预算/);
+  api.clearBlob();
+  assert.equal(api.state.archiveBytes, 0);
+  assert.doesNotThrow(() => api.budget(200 * 1024 * 1024));
 });
 
 test('invalid image quality is rejected before decoding', async () => {
@@ -102,7 +111,7 @@ test('image decoding errors release the source URL', async () => {
 
 test('non Excel files cannot be exported as fake JSON', async () => {
   const { el } = setup();
-  el('doc-input').files = [{ name: 'note.txt', arrayBuffer: async () => new ArrayBuffer(0) }];
+  el('doc-input').files = [{ name: 'note.txt', size: 1, arrayBuffer: async () => new ArrayBuffer(0) }];
   el('doc-format').value = 'json';
   await el('doc-btn').listeners.click();
   assert.match(el('statusText').textContent, /仅支持 Excel/);

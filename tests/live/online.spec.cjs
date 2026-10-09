@@ -7,8 +7,9 @@ async function convert(page, prefix, format, file, option = 'format') {
   await page.locator(`#${prefix}-input`).setInputFiles(file);
   await page.locator(`#${prefix}-${option}`).selectOption(format);
   await page.locator(`#${prefix}-btn`).click();
-  await expect(page.locator(`#${prefix}-btn`)).toBeEnabled();
-  await expect(page.locator('#statusText')).toContainText(/转换完成|处理完成/);
+  await expect(page.locator('#task-progress')).toBeHidden();
+  // The progress indicator is already hidden: the operation has reached a terminal state.
+  expect(await page.locator('#statusText').textContent()).toMatch(/转换完成|处理完成/);
   return page.locator(`#${prefix}-link`).evaluate(async link => {
     const blob = await (await fetch(link.href)).blob();
     const data = await new Promise(resolve => {
@@ -86,14 +87,14 @@ test('live Excel and document formats retain content and PDF output renders', as
 
 test('live PDF and corrupt image failures preserve earlier results and recover', async ({ page }) => {
   await page.locator('#img-input').setInputFiles({ name: 'broken.png', mimeType: 'image/png', buffer: Buffer.from('broken') });
-  await page.locator('#img-btn').click(); await expect(page.locator('#img-btn')).toBeEnabled();
+  await page.locator('#img-btn').click(); await expect(page.locator('#task-progress')).toBeHidden();
   await expect(page.locator('#statusText')).toContainText('图片无法解码');
   await convert(page, 'img', 'png', { name: 'valid.png', mimeType: 'image/png', buffer: fixture.png() });
   await page.locator('[data-tab="pdf"]').click();
   const scan = await convert(page, 'pdf', 'merge', { name: 'scan.png', mimeType: 'image/png', buffer: fixture.png() }, 'action');
   await page.locator('#pdf-input').setInputFiles({ name: 'scan.pdf', mimeType: 'application/pdf', buffer: Buffer.from(scan.base64, 'base64') });
   await page.locator('#pdf-action').selectOption('to-txt'); await page.locator('#pdf-btn').click();
-  await expect(page.locator('#pdf-btn')).toBeEnabled(); await expect(page.locator('#statusText')).toContainText('未提取到文字');
+  await expect(page.locator('#task-progress')).toBeHidden(); await expect(page.locator('#statusText')).toContainText('未提取到文字');
   const recovered = await convert(page, 'pdf', 'to-txt', { name: 'real.pdf', mimeType: 'application/pdf', buffer: fixture.pdf() }, 'action');
   expect(Buffer.from(recovered.base64, 'base64').toString()).toContain('Page 2 sample');
   await expect(page.locator('#results-list a')).toHaveCount(3);
@@ -105,10 +106,10 @@ test('live dependency load failure can retry without clearing results', async ({
   await page.route('**/vendor/xlsx/xlsx.full.min.js', route => route.abort());
   await page.locator('#doc-input').setInputFiles({ name: 'book.xlsx', mimeType: 'application/octet-stream', buffer: fixture.xlsx() });
   await page.locator('#doc-format').selectOption('json'); await page.locator('#doc-btn').click();
-  await expect(page.locator('#doc-btn')).toBeEnabled(); await expect(page.locator('#statusText')).toContainText('加载失败');
+  await expect(page.locator('#task-progress')).toBeHidden(); await expect(page.locator('#statusText')).toContainText('加载失败');
   await expect(page.locator('#results-list a')).toHaveCount(1);
   await page.unroute('**/vendor/xlsx/xlsx.full.min.js'); await page.locator('#retry-btn').click();
-  await expect(page.locator('#doc-btn')).toBeEnabled(); await expect(page.locator('#statusText')).toHaveText('转换完成');
+  await expect(page.locator('#task-progress')).toBeHidden(); await expect(page.locator('#statusText')).toHaveText('转换完成');
   await expect(page.locator('#results-list a')).toHaveCount(2);
 });
 

@@ -55,6 +55,69 @@
     }
   }
 
+  // Keep only metadata in history; completed/removed jobs release their input closure.
+  function createQueue({ onChange = () => {}, maxPending = 8, maxBytes = 200 * 1024 * 1024 } = {}) {
+    const jobs = [];
+    let active = null, nextId = 1, draining = false;
+    const entries = () => jobs.map(({ id, label, bytes, status, message }) => ({ id, label, bytes, status, message }));
+    const notify = () => {
+      while (jobs.length > 20) {
+        const index = jobs.findIndex(job => !['waiting', 'running'].includes(job.status));
+        if (index < 0) break;
+        jobs.splice(index, 1);
+      }
+      onChange(entries());
+    };
+    const finish = (job, status) => {
+      job.status = status;
+      job.run = null;
+      job.resolve(status);
+      job.resolve = null;
+    };
+    async function drain() {
+      if (draining) return;
+      draining = true;
+      try {
+        while ((active = jobs.find(job => job.status === 'waiting'))) {
+          const job = active;
+          job.status = 'running'; notify();
+          try {
+            const result = await job.run();
+            const status = typeof result === 'object' && result ? result.status : result;
+            if (result?.message) job.message = String(result.message);
+            finish(job, status === 'cancelled' ? 'cancelled' : status === 'failed' ? 'failed' : 'done');
+          } catch (error) { job.message = String(error?.message || error); finish(job, 'failed'); }
+          active = null;
+          notify();
+        }
+      } finally { draining = false; }
+    }
+    return {
+      entries,
+      add({ label, bytes }, run) {
+        const pending = jobs.filter(job => ['waiting', 'running'].includes(job.status));
+        if (pending.filter(job => job.status === 'waiting').length >= maxPending) throw new Error(`等待队列最多 ${maxPending} 个任务，请先处理或移除部分任务`);
+        checkBudget(bytes, pending.reduce((sum, job) => sum + job.bytes, 0), maxBytes);
+        let resolve;
+        const done = new Promise(r => { resolve = r; });
+        const job = { id: nextId++, label, bytes, run, resolve, status: 'waiting' };
+        jobs.push(job); notify();
+        void drain();
+        return { id: job.id, done };
+      },
+      remove(id) {
+        const job = jobs.find(item => item.id === id && item.status === 'waiting');
+        if (!job) return false;
+        finish(job, 'cancelled'); notify();
+        return true;
+      },
+      clearPending() {
+        for (const job of jobs) if (job.status === 'waiting') finish(job, 'cancelled');
+        notify();
+      }
+    };
+  }
+
   function loadScript(src, milliseconds = 15000) {
     return new Promise((resolve, reject) => {
       const script = document.createElement('script');
@@ -113,7 +176,7 @@
     return { ensure };
   }
 
-  const api = { withTimeout, fetchBytes, loadScript, createLoader, createTask, checkBudget };
+  const api = { withTimeout, fetchBytes, loadScript, createLoader, createTask, checkBudget, createQueue };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ConversionRuntime = api;
 })(globalThis);

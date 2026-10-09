@@ -12,7 +12,7 @@ async function convert(page, prefix, format, file, option = 'format') {
   await page.locator(`#${prefix}-input`).setInputFiles(file);
   await page.locator(`#${prefix}-${option}`).selectOption(format);
   await page.locator(`#${prefix}-btn`).click();
-  await expect(page.locator(`#${prefix}-btn`)).toBeEnabled();
+  await expect(page.locator('#task-progress')).toBeHidden();
   expect(await page.locator('#statusText').textContent()).toMatch(/转换完成|处理完成/);
   const output = await page.locator(`#${prefix}-link`).evaluate(async link => {
     const blob = await (await fetch(link.href)).blob();
@@ -150,7 +150,7 @@ test('corrupt input fails then a valid file succeeds without reload', async ({pa
   await page.locator('#img-input').setInputFiles({name:'broken.png',mimeType:'image/png',buffer:Buffer.from('corrupt')});
   await page.locator('#img-btn').click();
   await expect(page.locator('#statusText')).toContainText('图片无法解码');
-  await expect(page.locator('#img-btn')).toBeEnabled();
+  await expect(page.locator('#task-progress')).toBeHidden();
   await expect(page.locator('#retry-btn')).toBeVisible();
   await convert(page,'img','png',{name:'good.png',mimeType:'image/png',buffer:fixture.png()});
 });
@@ -171,10 +171,10 @@ test('failed PDF module import can be retried in the same browser', async ({page
   await page.route('**/vendor/pdfjs/pdf.min.mjs*',route=>route.abort());
   await page.locator('#pdf-input').setInputFiles({name:'sample.pdf',mimeType:'application/pdf',buffer:fixture.pdf()});
   await page.locator('#pdf-action').selectOption('to-txt'); await page.locator('#pdf-btn').click();
-  await expect(page.locator('#pdf-btn')).toBeEnabled();
+  await expect(page.locator('#task-progress')).toBeHidden();
   await expect(page.locator('#statusText')).toContainText('加载失败');
   await page.unroute('**/vendor/pdfjs/pdf.min.mjs*'); await page.locator('#retry-btn').click();
-  await expect(page.locator('#pdf-btn')).toBeEnabled();
+  await expect(page.locator('#task-progress')).toBeHidden();
   await expect(page.locator('#statusText')).toHaveText('处理完成');
 });
 
@@ -183,7 +183,7 @@ test('image-only PDF gives a clear no-OCR error instead of empty success', async
   const output = await convert(page,'pdf','merge',{name:'image.png',mimeType:'image/png',buffer:fixture.png()},'action');
   await page.locator('#pdf-input').setInputFiles({name:'scan.pdf',mimeType:'application/pdf',buffer:output.bytes});
   await page.locator('#pdf-action').selectOption('to-txt'); await page.locator('#pdf-btn').click();
-  await expect(page.locator('#pdf-btn')).toBeEnabled();
+  await expect(page.locator('#task-progress')).toBeHidden();
   await expect(page.locator('#statusText')).toContainText('未提取到文字');
 });
 
@@ -192,7 +192,7 @@ test('over 50 PDF pages are rejected then valid PDF succeeds', async ({page}) =>
   await page.locator('#pdf-input').setInputFiles({name:'large.pdf',mimeType:'application/pdf',buffer:fixture.pdf(51)});
   await page.locator('#pdf-btn').click();
   await expect(page.locator('#statusText')).toContainText('最多支持 50 页');
-  await expect(page.locator('#pdf-btn')).toBeEnabled();
+  await expect(page.locator('#task-progress')).toBeHidden();
   await convert(page,'pdf','to-txt',{name:'small.pdf',mimeType:'application/pdf',buffer:fixture.pdf()},'action');
 });
 
@@ -200,7 +200,7 @@ test('corrupt PDF releases the failed task and recovers', async ({page}) => {
   await open(page,'pdf');
   await page.locator('#pdf-input').setInputFiles({name:'broken.pdf',mimeType:'application/pdf',buffer:Buffer.from('not a PDF')});
   await page.locator('#pdf-btn').click();
-  await expect(page.locator('#pdf-btn')).toBeEnabled();
+  await expect(page.locator('#task-progress')).toBeHidden();
   await expect(page.locator('#statusText')).toContainText('失败');
   await convert(page,'pdf','to-txt',{name:'valid.pdf',mimeType:'application/pdf',buffer:fixture.pdf()},'action');
 });
@@ -226,11 +226,11 @@ test.describe('real FFmpeg conversion', () => {
     await page.route('**/ffmpeg-core.js',route=>route.abort());
     await page.locator('#aud-input').setInputFiles({name:'tone.wav',mimeType:'audio/wav',buffer:fixture.wav()});
     await page.locator('#aud-btn').click();
-    await expect(page.locator('#aud-btn')).toBeEnabled();
+    await expect(page.locator('#task-progress')).toBeHidden();
     await expect(page.locator('#statusText')).toContainText('初始化失败');
     await page.unroute('**/ffmpeg-core.js');
     await page.locator('#retry-btn').click();
-    await expect(page.locator('#aud-btn')).toBeEnabled();
+    await expect(page.locator('#task-progress')).toBeHidden();
     await expect(page.locator('#statusText')).toHaveText('转换完成');
   });
   test('cancel engine download then initialize and convert successfully', async ({page}) => {
@@ -241,7 +241,7 @@ test.describe('real FFmpeg conversion', () => {
     await page.locator('#aud-btn').click();
     await expect.poll(() => !!heldRoute).toBe(true);
     await page.locator('#cancel-btn').click();
-    await expect(page.locator('#aud-btn')).toBeEnabled();
+    await expect(page.locator('#task-progress')).toBeHidden();
     await expect(page.locator('#statusText')).toContainText('任务已取消');
     await expect(page.locator('#results-list a')).toHaveCount(0);
     await heldRoute.abort();
@@ -254,7 +254,7 @@ test.describe('real FFmpeg conversion', () => {
     await open(page,'audio');
     await page.locator('#aud-input').setInputFiles({name:'broken.wav',mimeType:'audio/wav',buffer:Buffer.from('not audio')});
     await page.locator('#aud-btn').click();
-    await expect(page.locator('#aud-btn')).toBeEnabled();
+    await expect(page.locator('#task-progress')).toBeHidden();
     await expect(page.locator('#statusText')).toContainText('失败');
     await convert(page,'aud','mp3',{name:'good.wav',mimeType:'audio/wav',buffer:fixture.wav()});
   });

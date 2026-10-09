@@ -5,6 +5,7 @@
   "scripts": {
     "test": "node --test tests/*.test.cjs",
     "test:e2e": "npm run build && node scripts/generate-media.cjs && playwright test",
+    "test:pressure": "npm run build && playwright test tests/e2e/pressure.spec.cjs",
     "test:live": "playwright test -c playwright.live.config.cjs",
     "build": "node scripts/check-vendor.cjs && node scripts/build.cjs",
     "check": "node --check app.js && node --check runtime.js",

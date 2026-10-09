@@ -6,7 +6,7 @@ const fixture = require('./fixtures.cjs');
 const image = (name = 'photo.png') => ({ name, mimeType: 'image/png', buffer: fixture.png() });
 async function finish(page, prefix) {
   await page.locator(`#${prefix}-btn`).click();
-  await expect(page.locator(`#${prefix}-btn`)).toBeEnabled();
+  await expect(page.locator('#task-progress')).toBeHidden();
 }
 async function bytes(link) {
   return Buffer.from(await link.evaluate(async element => {

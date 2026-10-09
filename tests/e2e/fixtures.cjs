@@ -23,14 +23,14 @@ function png() {
   return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]), chunk('IHDR', header),
     chunk('IDAT', zlib.deflateSync(Buffer.alloc(34))), chunk('IEND', Buffer.alloc(0))]);
 }
-function pdf(pages = 2) {
+function pdf(pages = 2, pageSize = 300) {
   const objects = [];
   const add = text => { objects.push(text); return objects.length; };
   add('<< /Type /Catalog /Pages 2 0 R >>');
   add(`<< /Type /Pages /Count ${pages} /Kids [${Array.from({length:pages},(_,i)=>`${4+i*2} 0 R`).join(' ')}] >>`);
   add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
   for (let i = 0; i < pages; i++) {
-    add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources << /Font << /F1 3 0 R >> >> /Contents ${5+i*2} 0 R >>`);
+    add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageSize} ${pageSize}] /Resources << /Font << /F1 3 0 R >> >> /Contents ${5+i*2} 0 R >>`);
     const content = `BT /F1 16 Tf 20 250 Td (Page ${i+1} sample) Tj ET`;
     add(`<< /Length ${Buffer.byteLength(content)} >>\nstream\n${content}\nendstream`);
   }

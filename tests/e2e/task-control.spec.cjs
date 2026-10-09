@@ -17,9 +17,9 @@ test('cancel a batch discards unfinished output and permits a fresh conversion',
   await page.waitForFunction(() => !!window.releaseEncoding);
   await expect(page.locator('#task-progress')).toBeVisible();
   await page.locator('#cancel-btn').click();
-  await expect(page.locator('#img-btn')).toBeDisabled();
+  await expect(page.locator('#task-progress')).toBeVisible();
   await page.evaluate(() => { window.restoreEncoding(); window.releaseEncoding(); });
-  await expect(page.locator('#img-btn')).toBeEnabled();
+  await expect(page.locator('#task-progress')).toBeHidden();
   await expect(page.locator('#statusText')).toContainText('任务已取消');
   await expect(page.locator('#results-list li')).toHaveCount(0);
   await page.locator('#img-input').setInputFiles(image('fresh.png'));
