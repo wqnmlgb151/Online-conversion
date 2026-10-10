@@ -1,0 +1,12 @@
+{
+  "id": "./",
+  "name": "本地文件转换工具",
+  "short_name": "本地转换",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f7fb",
+  "theme_color": "#2563d9",
+  "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

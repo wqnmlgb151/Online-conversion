@@ -444,6 +444,7 @@
           btn.classList.remove('border-transparent', 'text-gray-500');
           btn.setAttribute('aria-selected', 'true');
           btn.tabIndex = 0;
+          window.history?.replaceState(null, '', `#${btn.dataset.tab}`);
 
           // 面板切换
           const tab = btn.dataset.tab;
@@ -901,5 +902,11 @@
       updateImageOptions();
       renderResults();
       renderQueue([]);
+      const openEntry = () => {
+        const tab = window.location?.hash.slice(1);
+        if (['image','video','audio','doc','pdf'].includes(tab)) $(`tab-${tab}`).click();
+      };
+      window.addEventListener('hashchange', openEntry);
+      openEntry();
 
     })();

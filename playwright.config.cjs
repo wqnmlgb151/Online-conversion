@@ -9,6 +9,7 @@ module.exports = defineConfig({
   outputDir: 'test-results/local',
   reporter: [['list'], ['html', { outputFolder: 'playwright-report/local', open: 'never' }]],
   use: {
+    serviceWorkers: 'block',
     channel: 'chrome',
     baseURL: 'http://127.0.0.1:8080',
     headless: true,

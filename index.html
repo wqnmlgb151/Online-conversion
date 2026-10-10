@@ -6,6 +6,8 @@
   <title>本地文件转换工具</title>
   <meta name="description" content="在浏览器本地批量转换图片、处理 PDF、提取 Office 内容及转换音视频。支持尺寸调整和 ZIP 下载，无需上传文件。">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#2563d9">
   <link rel="stylesheet" href="styles.css">
   <style>
     .lib-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
@@ -29,6 +31,21 @@
 
   <!-- 主内容 -->
   <main class="max-w-5xl mx-auto px-4 py-8">
+    <details id="offline-panel" class="offline-panel">
+      <summary>离线准备与使用指南 · <span id="network-state">正在检查网络状态</span></summary>
+      <p id="offline-status" role="status">正在检查离线服务…</p>
+      <p id="offline-update" role="status"></p>
+      <p class="help">先联网准备需要的功能，再断网使用。仅缓存程序资源，不保存你的文件。首次准备音视频需要下载约 30 MB，下载失败时不会标记为可离线。</p>
+      <ul>
+        <li><button id="offline-image" type="button" disabled>准备图片与 ZIP</button><span id="offline-image-state">尚未检查</span></li>
+        <li><button id="offline-doc" type="button" disabled>准备文档</button><span id="offline-doc-state">尚未检查</span></li>
+        <li><button id="offline-pdf" type="button" disabled>准备 PDF</button><span id="offline-pdf-state">尚未检查</span></li>
+        <li><button id="offline-media" type="button" disabled>准备音视频（约 30 MB）</button><span id="offline-media-state">尚未检查</span></li>
+      </ul>
+      <div class="results-actions"><button id="offline-refresh" type="button" disabled>检查缓存状态</button><button id="offline-clear" type="button" disabled>清除功能缓存</button></div>
+      <p class="help">本站标签页共用功能缓存；清理前请完成其他窗口中的转换。</p>
+      <p class="help"><a href="guide.html">使用指南与离线限制</a> · <a href="examples/sample.md" download>下载 Markdown 示例</a> · 支持的浏览器可通过菜单将本站安装为应用。</p>
+    </details>
     
     <!-- 状态提示区 -->
     <div id="statusBar" class="mb-6 p-3 bg-white rounded-lg shadow-sm border border-gray-200 flex justify-between items-center text-sm">
@@ -195,5 +212,6 @@
 
   <script src="runtime.js" defer></script>
   <script src="app.js" defer></script>
+  <script src="offline.js" defer></script>
 </body>
 </html>

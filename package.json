@@ -7,9 +7,11 @@
     "test:e2e": "npm run build && node scripts/generate-media.cjs && playwright test",
     "test:pressure": "npm run build && playwright test tests/e2e/pressure.spec.cjs",
     "test:live": "playwright test -c playwright.live.config.cjs",
-    "build": "node scripts/check-vendor.cjs && node scripts/build.cjs",
-    "check": "node --check app.js && node --check runtime.js",
-    "vendor:check": "node scripts/check-vendor.cjs"
+    "test:offline-live": "playwright test -c playwright.live.config.cjs tests/live/offline.spec.cjs",
+    "build": "node scripts/check-vendor.cjs && node scripts/build.cjs && node scripts/verify-build.cjs",
+    "check": "node --check app.js && node --check runtime.js && node --check offline.js && node --check sw.js",
+    "vendor:check": "node scripts/check-vendor.cjs",
+    "media:probe": "node scripts/cache-core.cjs --probe"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0"

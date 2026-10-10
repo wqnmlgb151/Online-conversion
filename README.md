@@ -4,7 +4,7 @@
 
 **[打开在线工具](https://online-conversion.pages.dev/)** · [处理范围与隐私](https://online-conversion.pages.dev/privacy.html) · [阶段规划](docs/ROADMAP.md)
 
-纯静态网站，文件在浏览器内转换，无后端、无文件上传。图片、Office、Markdown、PDF 所需脚本随站点分发；音视频转换按需下载 FFmpeg 核心，并校验 SHA-256。当前没有 PWA 或完整离线支持。
+纯静态网站，文件在浏览器内转换，无后端、无文件上传。图片、Office、Markdown、PDF 所需脚本随站点分发；音视频转换按需下载 FFmpeg 核心，并校验 SHA-256。支持按功能准备离线资源及 PWA 清单；首次使用仍需联网，未准备的功能不保证断网可用。
 
 在线使用：[https://online-conversion.pages.dev/](https://online-conversion.pages.dev/)。用户已配置 Cloudflare Pages 同步 GitHub 仓库部署；生产分支为 `main`，更新推送后由 Cloudflare 自动构建发布。
 
@@ -16,6 +16,18 @@
 4. 转换过程中可切换功能继续提交，任务按顺序执行。点击「取消任务」停止当前任务；已完成结果仍保留，等待任务自动继续。要全部停止，先清空等待任务，再取消当前任务。
 
 ![线上工具界面：使用演示图片进行批量转换和尺寸调整](docs/images/preview.png)
+
+## 离线使用与功能入口
+
+在“离线准备与使用指南”中选择图片与 ZIP、文档、PDF 或音视频。只有对应全部资源下载并通过 SHA-256 校验后，才显示“已缓存，可离线使用”。每组包含自身需要的依赖和结果 ZIP 支持。缓存只保存程序资源，不保存文件、结果或队列。
+
+- 页面基础资源自动缓存；功能依赖须手动准备。音视频核心约 30 MB，首次 CDN 下载失败仍需恢复网络后重试；准备成功后可断网刷新并转码。
+- 可检查和清除功能缓存；页面基础资源保留。缓存由本站所有标签页共用，准备、清理和失败后的状态会同步到其他已打开页面；清理前请完成其他窗口的转换。浏览器可能因空间不足、无痕设置或清理站点数据移除缓存，离线前应检查状态。联网标识不代表 CDN 一定可访问。
+- 新版本等待当前页面关闭，不强制刷新正在转换的页面。保存结果后关闭本站全部标签页/应用窗口再打开；新版本会清理旧缓存，需要重新准备功能。
+- 构建时按程序和依赖内容生成缓存版本及校验清单。离线功能需要 HTTPS 或 localhost，并从 `dist` 部署。直接运行源码可转换，但不包含构建生成的离线清单。
+- 支持的浏览器可从菜单安装为应用；实体手机安装行为仍需单独验收。
+
+可收藏或分享功能入口：[#image](https://online-conversion.pages.dev/#image)、[#doc](https://online-conversion.pages.dev/#doc)、[#pdf](https://online-conversion.pages.dev/#pdf)、[#audio](https://online-conversion.pages.dev/#audio)、[#video](https://online-conversion.pages.dev/#video)。这些入口共用同一静态页面。另提供 [使用指南](guide.html) 和 [Markdown 示例](examples/sample.md)。
 
 ## 支持范围
 
@@ -63,6 +75,8 @@ python -m http.server 8080
 
 访问 `http://localhost:8080`，推荐 Chrome / Edge。不要直接通过 `file://` 打开：FFmpeg Worker 需要 HTTP(S) 同源脚本。
 
+验证离线与 PWA 时先执行 `npm run build`，再执行 `node scripts/serve.cjs dist`。
+
 ## 部署
 
 开发目录可直接运行。正式发布建议生成只包含网站资源的 `dist` 目录：
@@ -108,11 +122,17 @@ npm run test:e2e
 
 Chrome 测试直接访问 `dist` 发布目录，使用真实 PNG、XLSX、DOCX、中文 Markdown / TXT、PDF、WAV 和一秒合成视频，验证输出可以重新解码或渲染，以及损坏文件、依赖失败和重试。音视频测试用已校验的缓存响应 CDN 请求，不依赖每次实时下载；上线后的 CDN 连通性需要另行冒烟验证。
 
+`npm run media:probe` 忽略测试缓存，重新下载正式 CDN 的 JS 与 WASM，验证完整 SHA-256 和公开 CORS 响应；不会覆盖已有测试核心。此结果只代表执行时的网络可达性。
+
+`npm run build` 同时核查实际 `dist` 目录：拒绝多余文件和符号链接，检查离线资源校验值、版本、PWA 范围，以及 [Cloudflare Pages 单文件 25 MiB 限制](https://developers.cloudflare.com/pages/platform/limits/#file-size)。构建不会删除多余文件，发现后需先移走再重建，避免误发布测试或历史产物。
+
 GitHub Actions 配置见 `.github/workflows/verify.yml`，失败时保存浏览器截图和 trace。测试样本是合成文件，不能代表所有复杂排版、编码、大文件和移动设备。
 
 可单独执行 `npm run test:pressure`：检查 1 万行工作簿、含表格与链接的 DOCX、1000 页 PDF 选页、超大 PDF 页面拒绝、重复 ZIP 释放，以及 1200 万像素纹理图片在手机触控模拟和 4 倍 CPU 降速下的转换。重复转换会检查 Blob URL 释放和队列记录上限；这不等同于测量浏览器实际堆内存回收。真实用户文档及实体手机仍需要单独验收。
 
 本地测试产物位于 `test-results/local` 和 `playwright-report/local`，线上测试位于对应的 `live` 子目录，避免两个运行互相清理文件。
+
+常规转换用例禁用 Service Worker，保证网络失败注入可控；`offline.spec.cjs` 显式启用真实 Service Worker，覆盖断网重载、图片及 ZIP 解码、未准备功能、缓存篡改与恢复、音视频下载失败重试及离线解码、跨标签页准备与清理、更新等待及旧版本清理。音视频离线测试用固定校验缓存响应首次 CDN 下载，不代表当时真实 CDN 的可用性。
 
 ### 线上验收
 
@@ -121,6 +141,8 @@ node scripts/cache-core.cjs
 node scripts/generate-media.cjs
 npm run test:live
 ```
+
+可用 `npm run test:offline-live` 单独验证线上离线准备、图片 ZIP、文档与 PDF Worker、真实 CDN 音频缓存及跨标签页状态同步。该专项启用 Service Worker，不替换网络响应；下载和校验失败会让测试失败。常规线上失败注入用例禁用 Service Worker，避免缓存拦截绕过测试注入。
 
 线上验收直接访问 Cloudflare Pages，复用批量处理用例，并验证 Office / PDF 与音视频输出。FFmpeg 核心使用真实 CDN 下载，不使用本地缓存替换网络响应；缓存核心仅用于生成合成视频输入。依赖失败恢复用例会主动中断一次 Excel 脚本请求，再恢复正常网络。检查记录见 [docs/LIVE-VERIFICATION.md](docs/LIVE-VERIFICATION.md)。可用 `LIVE_BASE_URL` 环境变量指定其他已部署地址。
 
