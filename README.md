@@ -101,6 +101,10 @@ npm run build
 
 无需应用密钥或服务端。已使用旧配置 `exit 0` / `.` 的项目应改为上述设置，避免发布测试代码和安装目录。部署后检查图片转换、文档转换以及音视频引擎加载；CDN 无法访问时，对应功能会提示错误。关联 GitHub 后，推送到生产分支会触发自动部署。
 
+离线功能必须发布构建产物：`npm run build` 会生成 `dist/offline-assets.js`，源码根目录不包含该文件。修改构建设置后，需要重试部署或推送新提交，等待新部署成功，再验证生产地址。
+
+可打开站点的 `/offline-assets.js` 核查发布结果：应返回以 `self.OFFLINE_ASSETS =` 开头的 JavaScript，包含资源版本、分组与校验值。若返回首页 HTML，即使状态码为 200，也表示离线清单未正确发布；请查看本次部署使用的构建命令、输出目录及构建日志。GitHub 仓库访问警告应结合新部署的克隆日志判断，不能仅凭警告认定仓库权限不足。
+
 参考：[Cloudflare 静态 HTML 部署文档](https://developers.cloudflare.com/pages/framework-guides/deploy-anything/)。
 
 `vendor/ffmpeg` 中的两个脚本来自 `@ffmpeg/ffmpeg@0.12.10`，必须保留在同一目录。包装库采用 MIT 许可证，见随附 LICENSE；FFmpeg 核心及编解码器有各自的许可证，发行时需自行核对。
