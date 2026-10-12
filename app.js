@@ -647,6 +647,7 @@
         await ensureLib('jspdf');
         await ensureLib('html2canvas');
         const container = document.createElement('div');
+        container.className = 'document-export';
         container.innerHTML = await sanitize(htmlStr);
         container.style.cssText = 'position:absolute;left:-10000px;top:0;width:714px;padding:32px;background:white;color:black;font:16px/1.6 sans-serif;overflow-wrap:anywhere';
         container.querySelectorAll('pre').forEach(el => { el.style.whiteSpace = 'pre-wrap'; });

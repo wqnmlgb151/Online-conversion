@@ -6,7 +6,9 @@
 
 纯静态网站，文件在浏览器内转换，无后端、无文件上传。图片、Office、Markdown、PDF 所需脚本随站点分发；音视频转换按需下载 FFmpeg 核心，并校验 SHA-256。支持按功能准备离线资源及 PWA 清单；首次使用仍需联网，未准备的功能不保证断网可用。
 
-在线使用：[https://online-conversion.pages.dev/](https://online-conversion.pages.dev/)。用户已配置 Cloudflare Pages 同步 GitHub 仓库部署；生产分支为 `main`，更新推送后由 Cloudflare 自动构建发布。
+界面自动跟随系统或浏览器的浅色／深色主题，设置变化后无需刷新。转换工具、使用指南与隐私说明使用同一套配色；切换主题保留当前文件、选项、任务及结果。界面主题不改变导出文件的颜色，文档 PDF 保持白底。
+
+在线使用：[https://online-conversion.pages.dev/](https://online-conversion.pages.dev/)。Cloudflare Pages 连接 GitHub 的 `main` 分支自动构建；线上版本以最近一次成功部署为准。当前本地验收与待发布事项见 [发展规划](docs/ROADMAP.md)。
 
 ## 快速使用
 
@@ -148,6 +150,8 @@ npm run test:live
 
 可用 `npm run test:offline-live` 单独验证线上离线准备、图片 ZIP、文档与 PDF Worker、真实 CDN 音频缓存及跨标签页状态同步。该专项启用 Service Worker，不替换网络响应；下载和校验失败会让测试失败。常规线上失败注入用例禁用 Service Worker，避免缓存拦截绕过测试注入。
 
-线上验收直接访问 Cloudflare Pages，复用批量处理用例，并验证 Office / PDF 与音视频输出。FFmpeg 核心使用真实 CDN 下载，不使用本地缓存替换网络响应；缓存核心仅用于生成合成视频输入。依赖失败恢复用例会主动中断一次 Excel 脚本请求，再恢复正常网络。检查记录见 [docs/LIVE-VERIFICATION.md](docs/LIVE-VERIFICATION.md)。可用 `LIVE_BASE_URL` 环境变量指定其他已部署地址。
+线上验收直接访问 Cloudflare Pages，复用批量处理用例，并验证 Office / PDF 与音视频输出。FFmpeg 核心使用真实 CDN 下载，不使用本地缓存替换网络响应；缓存核心仅用于生成合成视频输入。依赖失败恢复用例会主动中断一次 Excel 脚本请求，再恢复正常网络。历史检查记录见 [线上验收记录](docs/history/LIVE-VERIFICATION.md)。可用 `LIVE_BASE_URL` 环境变量指定其他已部署地址。
 
-阶段规划见 [docs/ROADMAP.md](docs/ROADMAP.md)。
+## 项目维护
+
+目录职责、测试缓存、产物清理和报告恢复方式见 [维护说明](docs/MAINTENANCE.md)。当前状态与下一步见 [发展规划](docs/ROADMAP.md)；阶段验收记录统一归档于 `docs/history/`，其中测试数量与发布状态仅代表记录当时的版本。

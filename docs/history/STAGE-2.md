@@ -1,5 +1,7 @@
 # 第二阶段验收记录
 
+> 历史验收／排查记录，结论仅代表文中日期与版本。当前状态见[发展规划](../ROADMAP.md)，临时产物的保留与重建见[维护说明](../MAINTENANCE.md)。
+
 日期：2026-10-07。状态：已推送至 main（c217659）并确认 Cloudflare Pages 已部署；后续线上验收与修复见 [LIVE-VERIFICATION.md](LIVE-VERIFICATION.md)。
 
 ## 已完成

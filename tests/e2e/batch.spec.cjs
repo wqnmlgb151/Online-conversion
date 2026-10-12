@@ -165,7 +165,7 @@ test('PDF image order controls change actual merged page colors', async ({ page 
   expect(pixels).toEqual([[0, 0, 255, 255], [255, 0, 0, 255]]);
 });
 
-test('PDF drop works and results fit desktop and mobile layouts', async ({ page }) => {
+test('PDF drop works and results fit desktop and mobile layouts', async ({ page }, testInfo) => {
   await page.goto('/'); await page.locator('[data-tab="pdf"]').click();
   await page.locator('[data-input="pdf-input"]').evaluate((zone, base64) => {
     const transfer = new DataTransfer();
@@ -177,7 +177,7 @@ test('PDF drop works and results fit desktop and mobile layouts', async ({ page 
   for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: 850 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    await page.screenshot({ path: `.test-cache/stage2-${width}.png`, fullPage: true });
+    await page.screenshot({ path: testInfo.outputPath(`layout-${width}.png`), fullPage: true });
   }
 });
 
