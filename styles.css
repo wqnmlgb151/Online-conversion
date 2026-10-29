@@ -57,3 +57,22 @@
 .drop-zone{border:2px dashed var(--input-border);border-radius:10px;background:var(--soft-bg);padding:10px;transition:border-color .15s}.drop-zone input[type=file]{border:0;padding:8px}.drop-zone p{font-size:13px;margin:4px 8px}.drop-zone.drag-over{border-color:var(--button-bg);background:var(--accent-bg)}.checkbox-label{display:flex;align-items:center;gap:8px}.checkbox-label input{width:auto}.file-list{list-style:none;padding:0;margin:12px 0 0;max-height:260px;overflow:auto}.file-list li{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--separator);padding:8px 0;font-size:13px}.file-list span{flex:1;overflow-wrap:anywhere}.file-list button,.results-panel button{padding:8px 12px;border:1px solid var(--input-border);border-radius:7px;background:var(--surface);color:var(--accent-text);white-space:nowrap}.results-panel{margin-top:24px;padding:24px;background:var(--surface);border:1px solid var(--border);border-radius:16px}.results-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.results-heading h2{margin-bottom:8px}.results-heading p{font-size:13px;margin:0}.results-actions{display:flex;gap:8px;flex-wrap:wrap}.results-panel ul{list-style:none;padding:0;margin:16px 0 0;max-height:480px;overflow:auto}.result-row{display:flex;align-items:center;gap:16px;padding:16px 0;border-top:1px solid var(--separator)}.result-row>div{flex:1;min-width:0;overflow-wrap:anywhere}.result-row strong{font-size:14px}.result-row p{font-size:13px;margin:4px 0 0}.result-error p{color:var(--error)}.result-row a{white-space:nowrap}#pdf-pages-help{margin-bottom:0}@media(max-width:600px){.results-panel{padding:20px}.results-heading{flex-direction:column}.result-row{gap:10px}.file-list button{padding:8px}}
 input::placeholder{color:var(--muted);opacity:1}
 input[type=checkbox],progress{accent-color:var(--button-bg)}
+/* Keep the file-to-download path ahead of optional settings and maintenance. */
+header>div{padding-top:24px;padding-bottom:20px}header p{margin:8px 0 0}
+main{padding-top:20px}.tab-panel h2{margin-bottom:18px}.primary-fields{grid-template-columns:minmax(0,1fr);gap:16px;margin-bottom:16px}
+.primary-fields .help{margin:6px 0 0}.file-list:empty{display:none}.file-list{max-height:180px}
+.tab-panel a[download]{overflow-wrap:anywhere}
+.optional-options{margin:0 0 18px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;background:var(--soft-bg)}
+.optional-options summary,.task-queue summary,.usage-limits summary{cursor:pointer;font-weight:600}
+.optional-options summary span{font-size:13px;font-weight:400;color:var(--muted);margin-left:8px}
+.optional-options .grid{margin-top:16px;margin-bottom:12px}.optional-options .help{margin-bottom:0}
+.feature-note{font-size:13px;font-weight:400;color:var(--muted);margin-left:8px}
+#statusBar{margin-top:18px;margin-bottom:16px}#statusText{flex:1}
+.task-queue{padding:14px 18px;margin-bottom:16px}.task-queue summary{line-height:1.6}
+#queue-summary{font-size:13px;font-weight:400;color:var(--muted);margin-left:12px}.queue-actions{margin-top:14px}
+.offline-panel{margin-top:20px;margin-bottom:12px}.tool-health-label{margin-bottom:8px}
+#miniLibStatus{flex-wrap:wrap;gap:12px;white-space:normal;font-size:13px}
+.usage-limits{padding:14px 18px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font-size:13px}
+.usage-limits p{margin-bottom:0}.footer-links{text-align:center;font-size:13px;margin:18px 0 0}
+@media(max-width:600px){header>div{padding-top:20px;padding-bottom:16px}main{padding-top:16px}.tab-panel{padding:18px}.tab-panel h2{font-size:18px}.optional-options summary span{display:block;margin:4px 0 0 16px}#queue-summary{display:block;margin:4px 0 0 16px}#statusBar{flex-direction:row;align-items:center;gap:8px}.drop-zone input[type=file]{max-width:100%;font-size:13px}}
+@media(max-width:600px){nav{gap:4px}.tab-btn{min-width:0;min-height:44px;padding:10px 4px}}

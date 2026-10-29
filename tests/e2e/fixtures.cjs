@@ -64,4 +64,8 @@ function wav() {
   for(let i=0;i<samples;i++) data.writeInt16LE(Math.round(Math.sin(i*2*Math.PI*440/8000)*3000),44+i*2);
   return data;
 }
-module.exports = { png, pdf, xlsx, docx, wav };
+async function openImageOptions(page) {
+  const options = page.locator('#img-options');
+  if (await options.getAttribute('open') === null) await options.locator('summary').click();
+}
+module.exports = { png, pdf, xlsx, docx, wav, openImageOptions };

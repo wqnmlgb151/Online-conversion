@@ -31,13 +31,18 @@ test('cancel a batch discards unfinished output and permits a fresh conversion',
 test('large resize is rejected before allocating its canvas and can recover', async ({ page }) => {
   await page.goto('/');
   await page.locator('#img-input').setInputFiles(image('small.png'));
+  await fixture.openImageOptions(page);
   await page.locator('#img-width').fill('6000');
+  await fixture.openImageOptions(page);
   await page.locator('#img-height').fill('6000');
+  await fixture.openImageOptions(page);
   await page.locator('#img-ratio').uncheck();
   await page.locator('#img-btn').click();
   await expect(page.locator('#statusText')).toContainText('预算');
   await expect(page.locator('#results-list a')).toHaveCount(0);
+  await fixture.openImageOptions(page);
   await page.locator('#img-width').fill('10');
+  await fixture.openImageOptions(page);
   await page.locator('#img-height').fill('10');
   await page.locator('#img-btn').click();
   await expect(page.locator('#results-list a')).toHaveCount(1);

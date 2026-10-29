@@ -66,9 +66,11 @@ test('theme changes retain selected files, options, results and readable errors'
   await expect(page.locator('#results-summary')).toContainText('1 个成功，1 个失败');
   const link = await page.locator('#img-link').getAttribute('href');
   const queue = await page.locator('#queue-list').textContent();
+  await fixture.openImageOptions(page);
   await page.locator('#img-width').fill('24');
   await page.locator('#offline-panel summary').click();
   await expect(page.locator('#offline-clear')).toBeEnabled();
+  await fixture.openImageOptions(page);
   await page.locator('#img-width').focus();
   for (const colorScheme of ['dark', 'light']) {
     await page.emulateMedia({ colorScheme });

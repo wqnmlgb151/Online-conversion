@@ -26,43 +26,14 @@
   <!-- 顶部 -->
   <header class="bg-white shadow-sm border-b">
     <div class="max-w-5xl mx-auto px-4 py-5">
-      <h1 class="text-2xl font-bold text-gray-900">本地文件转换工具</h1>
-      <p class="text-sm text-gray-500 mt-1">所有文件在本地浏览器处理，无需上传服务器 | 推荐 Chrome/Edge</p>
+      <h1 class="text-2xl font-bold text-gray-900">文件转换工具</h1>
+      <p class="text-sm text-gray-500 mt-1">选文件 → 选格式 → 下载。无需注册，文件不上传。</p>
     </div>
   </header>
 
   <!-- 主内容 -->
   <main class="max-w-5xl mx-auto px-4 py-8">
-    <details id="offline-panel" class="offline-panel">
-      <summary>离线准备与使用指南 · <span id="network-state">正在检查网络状态</span></summary>
-      <p id="offline-status" role="status">正在检查离线服务…</p>
-      <p id="offline-update" role="status"></p>
-      <p class="help">先联网准备需要的功能，再断网使用。仅缓存程序资源，不保存你的文件。首次准备音视频需要下载约 30 MB，下载失败时不会标记为可离线。</p>
-      <ul>
-        <li><button id="offline-image" type="button" disabled>准备图片与 ZIP</button><span id="offline-image-state">尚未检查</span></li>
-        <li><button id="offline-doc" type="button" disabled>准备文档</button><span id="offline-doc-state">尚未检查</span></li>
-        <li><button id="offline-pdf" type="button" disabled>准备 PDF</button><span id="offline-pdf-state">尚未检查</span></li>
-        <li><button id="offline-media" type="button" disabled>准备音视频（约 30 MB）</button><span id="offline-media-state">尚未检查</span></li>
-      </ul>
-      <div class="results-actions"><button id="offline-refresh" type="button" disabled>检查缓存状态</button><button id="offline-clear" type="button" disabled>清除功能缓存</button></div>
-      <p class="help">本站标签页共用功能缓存；清理前请完成其他窗口中的转换。</p>
-      <p class="help"><a href="guide.html">使用指南与离线限制</a> · <a href="examples/sample.md" download>下载 Markdown 示例</a> · 支持的浏览器可通过菜单将本站安装为应用。</p>
-    </details>
-    
-    <!-- 状态提示区 -->
-    <div id="statusBar" class="mb-6 p-3 bg-white rounded-lg shadow-sm border border-gray-200 flex justify-between items-center text-sm">
-      <div id="statusText" role="status" aria-live="polite">就绪</div>
-      <div id="miniLibStatus" class="flex gap-4"></div>
-      <button id="retry-btn" class="hidden" type="button">使用当前选择重试</button>
-      <button id="cancel-btn" type="button" disabled>取消任务</button>
-    </div>
-    <progress id="task-progress" class="hidden" aria-label="当前转换进度" style="width:100%;margin-bottom:16px"></progress>
-    <p class="help">转换时可切换功能、修改设置并继续提交；已提交任务使用当时的文件与设置。取消只停止当前任务，等待任务继续执行。结果累计最多 128 MB。</p>
-    <section class="task-queue" aria-labelledby="queue-title">
-      <div class="results-heading"><div><h2 id="queue-title">任务队列</h2><p id="queue-summary" role="status">当前空闲 · 等待 0 个任务</p></div><button id="queue-clear" type="button" disabled>清空等待任务</button></div>
-      <p id="queue-notice" role="status" class="help">最多等待 8 个任务，运行与等待输入合计最多 200 MB。最近 20 条任务记录仅保存在当前页面。</p>
-      <ol id="queue-list" aria-label="任务列表"></ol>
-    </section>
+
 
     <!-- Tab 导航 -->
     <nav class="flex border-b border-gray-200 mb-6" id="mainTabs" role="tablist" aria-label="转换功能">
@@ -75,43 +46,45 @@
 
     <!-- 图片转换 -->
     <section id="panel-image" role="tabpanel" aria-labelledby="tab-image" class="tab-panel bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-      <h2 class="text-lg font-semibold mb-4">图片格式互转</h2>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-        <div class="md:col-span-3">
-          <label for="img-input" class="block text-sm font-medium text-gray-700 mb-1">选择图片</label>
-          <div class="drop-zone" data-input="img-input"><input type="file" id="img-input" multiple accept="image/*" aria-label="选择图片" class="w-full text-sm text-gray-500"><p>选择多张图片，或拖拽到这里。每批最多 100 张。</p></div>
+      <h2 class="text-lg font-semibold mb-4">图片格式转换</h2>
+      <div class="grid primary-fields">
+        <div>
+          <label for="img-input">选择图片</label>
+          <div class="drop-zone" data-input="img-input"><input type="file" id="img-input" multiple accept="image/*" aria-label="选择图片"><p>可批量拖放，最多 100 张；单张最多 30 MB。</p></div>
           <ol id="img-files" class="file-list" aria-label="已选择图片"></ol>
         </div>
         <div>
-          <label for="img-format" class="block text-sm font-medium text-gray-700 mb-1">目标格式</label>
-          <select id="img-format" class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+          <label for="img-format">输出格式</label>
+          <select id="img-format" aria-describedby="img-format-help">
             <option value="webp">WebP</option>
             <option value="jpeg">JPG</option>
             <option value="png">PNG</option>
           </select>
+          <p id="img-format-help" class="help">体积通常更小，适合网页与分享。</p>
         </div>
-        <div>
-          <label for="img-quality" class="block text-sm font-medium text-gray-700 mb-1">JPG / WebP 质量 (0.1-1.0)</label>
-          <input type="number" id="img-quality" value="0.9" min="0.1" max="1" step="0.1" class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+      </div>
+      <details id="img-options" class="optional-options">
+        <summary>画质与尺寸 <span>可选，默认保留原尺寸</span></summary>
+        <div class="grid">
+          <div><label for="img-quality">JPG / WebP 质量（0.1–1，默认 0.9）</label><input type="number" id="img-quality" value="0.9" min="0.1" max="1" step="0.1"></div>
+          <div><label for="img-width">目标宽度（像素）</label><input id="img-width" type="number" min="1" max="8192" step="1" placeholder="留空保留原尺寸"></div>
+          <div><label for="img-height">目标高度（像素）</label><input id="img-height" type="number" min="1" max="8192" step="1" placeholder="留空保留原尺寸"></div>
         </div>
-        <div><label for="img-width">目标宽度（像素）</label><input id="img-width" type="number" min="1" max="8192" step="1" placeholder="留空保留原尺寸"></div>
-        <div><label for="img-height">目标高度（像素）</label><input id="img-height" type="number" min="1" max="8192" step="1" placeholder="留空保留原尺寸"></div>
-      </div>
-      <label class="checkbox-label"><input id="img-ratio" type="checkbox" checked>保持比例（同时填写宽高时，适配此范围）</label>
-      <p class="help">PNG 为无损输出，质量设置仅用于 JPG / WebP。只填写一边时自动保持比例；最大边长 8192 像素。</p>
-      <button id="img-btn" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition">开始转换</button>
-      <div id="img-down" class="mt-4 hidden">
-        <a id="img-link" class="text-green-600 font-medium hover:underline" download>点击下载文件</a>
-      </div>
+        <label class="checkbox-label"><input id="img-ratio" type="checkbox" checked>保持比例</label>
+        <p class="help">只填一边时自动保持比例；同时填写宽高时适配此范围。PNG 无损输出，不使用质量设置。最大边长 8192 像素。</p>
+      </details>
+      <button id="img-btn" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition">转换为 WebP</button>
+      <div id="img-down" class="mt-4 hidden"><a id="img-link" class="text-green-600 font-medium hover:underline" download>下载转换后的图片</a></div>
     </section>
 
     <!-- 视频转换 -->
     <section id="panel-video" role="tabpanel" aria-labelledby="tab-video" class="tab-panel hidden-tab bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-      <h2 class="text-lg font-semibold mb-4">视频格式转换（实验功能）</h2>
+      <h2 class="text-lg font-semibold mb-4">视频转换 <span class="feature-note">实验功能</span></h2>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div class="md:col-span-2">
           <label for="vid-input" class="block text-sm font-medium text-gray-700 mb-1">选择视频</label>
-          <input type="file" id="vid-input" accept="video/*" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700">
+          <div class="drop-zone" data-input="vid-input"><input type="file" id="vid-input" accept="video/*" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700"><p>拖入一个视频，或点击选择。单个文件最多 200 MB。</p></div>
+          <ol id="vid-files" class="file-list" aria-label="已选择视频"></ol>
         </div>
         <div>
           <label for="vid-format" class="block text-sm font-medium text-gray-700 mb-1">目标格式</label>
@@ -132,11 +105,12 @@
 
     <!-- 音频转换 -->
     <section id="panel-audio" role="tabpanel" aria-labelledby="tab-audio" class="tab-panel hidden-tab bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-      <h2 class="text-lg font-semibold mb-4">音频格式转换（实验功能）</h2>
+      <h2 class="text-lg font-semibold mb-4">音频转换 <span class="feature-note">实验功能</span></h2>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div class="md:col-span-2">
           <label for="aud-input" class="block text-sm font-medium text-gray-700 mb-1">选择音频</label>
-          <input type="file" id="aud-input" accept="audio/*" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700">
+          <div class="drop-zone" data-input="aud-input"><input type="file" id="aud-input" accept="audio/*" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700"><p>拖入一个音频，或点击选择。单个文件最多 200 MB。</p></div>
+          <ol id="aud-files" class="file-list" aria-label="已选择音频"></ol>
         </div>
         <div>
           <label for="aud-format" class="block text-sm font-medium text-gray-700 mb-1">目标格式</label>
@@ -161,7 +135,8 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div class="md:col-span-2">
           <label for="doc-input" class="block text-sm font-medium text-gray-700 mb-1">选择文档 (.xlsx, .docx, .md, .txt)</label>
-          <input type="file" id="doc-input" accept=".xlsx,.docx,.md,.txt" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700">
+          <div class="drop-zone" data-input="doc-input"><input type="file" id="doc-input" accept=".xlsx,.docx,.md,.txt" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700"><p>拖入一个文档，或点击选择。单个文件最多 30 MB。</p></div>
+          <ol id="doc-files" class="file-list" aria-label="已选择文档"></ol>
         </div>
         <div>
           <label for="doc-format" class="block text-sm font-medium text-gray-700 mb-1">目标格式</label>
@@ -205,11 +180,47 @@
       </div>
     </section>
 
+    <!-- 状态提示区 -->
+    <div id="statusBar" class="mb-6 p-3 bg-white rounded-lg shadow-sm border border-gray-200 flex justify-between items-center text-sm">
+      <div id="statusText" role="status" aria-live="polite">就绪</div>
+      <button id="retry-btn" class="hidden" type="button">使用当前选择重试</button>
+      <button id="cancel-btn" class="hidden" type="button" disabled>取消任务</button>
+    </div>
+    <progress id="task-progress" class="hidden" aria-label="当前转换进度" style="width:100%;margin-bottom:16px"></progress>
+    <details id="queue-panel" class="task-queue">
+      <summary><span id="queue-title">任务记录</span><span id="queue-summary" role="status">当前空闲 · 等待 0 个任务</span></summary>
+      <div class="queue-actions"><button id="queue-clear" type="button" disabled>清空等待任务</button></div>
+      <p class="help">可以继续提交文件；每个任务使用提交时的设置。取消只停止当前任务，等待任务继续执行。</p>
+      <p id="queue-notice" role="status" class="help">最多等待 8 个任务，运行与等待输入合计最多 200 MB。最近 20 条记录只保留在本页。</p>
+      <ol id="queue-list" aria-label="任务列表"></ol>
+    </details>
+
     <section id="results-panel" class="results-panel" aria-labelledby="results-title">
       <div class="results-heading"><div><h2 id="results-title">转换结果</h2><p id="results-summary">暂无结果。结果保留至清空或离开页面。</p></div><div class="results-actions"><button id="results-zip" type="button">下载全部 ZIP</button><button id="results-clear" type="button">清空结果</button></div></div>
       <ul id="results-list" aria-label="转换结果列表"></ul>
     </section>
+    <details id="offline-panel" class="offline-panel">
+      <summary>离线准备与使用指南 · <span id="network-state">正在检查网络状态</span></summary>
+      <p id="offline-status" role="status">正在检查离线服务…</p>
+      <p id="offline-update" role="status"></p>
+      <p class="help">先联网准备需要的功能，再断网使用。仅缓存程序资源，不保存你的文件。首次准备音视频需要下载约 30 MB，下载失败时不会标记为可离线。</p>
+      <ul>
+        <li><button id="offline-image" type="button" disabled>准备图片与 ZIP</button><span id="offline-image-state">尚未检查</span></li>
+        <li><button id="offline-doc" type="button" disabled>准备文档</button><span id="offline-doc-state">尚未检查</span></li>
+        <li><button id="offline-pdf" type="button" disabled>准备 PDF</button><span id="offline-pdf-state">尚未检查</span></li>
+        <li><button id="offline-media" type="button" disabled>准备音视频（约 30 MB）</button><span id="offline-media-state">尚未检查</span></li>
+      </ul>
+      <div class="results-actions"><button id="offline-refresh" type="button" disabled>检查缓存状态</button><button id="offline-clear" type="button" disabled>清除功能缓存</button></div>
+      <p class="help">本站标签页共用功能缓存；清理前请完成其他窗口中的转换。</p>
+      <p class="help"><a href="guide.html">使用指南与离线限制</a> · <a href="examples/sample.md" download>下载 Markdown 示例</a> · 支持的浏览器可通过菜单将本站安装为应用。</p>
+      <p class="tool-health-label">转换组件状态</p>
+      <div id="miniLibStatus" class="tool-health"></div>
+    </details>
+    <details class="usage-limits"><summary>支持范围与使用限制</summary>
   <p class="help">图片最多 30 MB；GIF 输入只保留首帧。文档 PDF 为图片分页，文字不可搜索。Excel 仅导出首个工作表。PDF 转图片每次最多选 50 页，扫描版 PDF 不能直接提取文字。常用转换库由本站提供，音视频引擎需联网下载。<a href="privacy.html">处理范围与隐私说明</a></p>
+    </details>
+    <p class="footer-links"><a href="guide.html">使用指南</a> · <a href="privacy.html">隐私说明</a></p>
+
   </main>
 
   <script src="runtime.js" defer></script>

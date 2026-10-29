@@ -50,6 +50,7 @@
           // Forms stay editable: running conversions read their submitted snapshots.
           document.querySelectorAll('[data-result-mutation], #results-zip, #results-clear, #retry-btn').forEach(el => { el.disabled = value; });
           $('cancel-btn').disabled = !value || this.task?.signal.aborted;
+          $('cancel-btn').classList.toggle('hidden', !value);
           $('task-progress').classList.toggle('hidden', !value);
           if (value) $('task-progress').removeAttribute('value');
           if (!value) this.task = null;
@@ -101,11 +102,22 @@
       };
 
       const labels = { img: '图片', vid: '视频', aud: '音频', doc: '文档', pdf: 'PDF' };
+      const updateActionLabels = () => {
+        const formats = { webp: 'WebP', jpeg: 'JPG', png: 'PNG', mp4: 'MP4', webm: 'WebM', mp3: 'MP3', gif: 'GIF', wav: 'WAV', flac: 'FLAC', m4a: 'M4A', pdf: 'PDF', html: 'HTML', txt: 'TXT', json: 'JSON', csv: 'CSV' };
+        for (const prefix of ['img', 'vid', 'aud', 'doc']) {
+          const format = formats[$(`${prefix}-format`).value];
+          const count = state.selectedFiles[`${prefix}-input`]?.length || 0;
+          $(`${prefix}-btn`).textContent = format ? `转换${prefix === 'img' && count > 1 ? ` ${count} 张图片` : ''}为 ${format}` : '开始转换';
+        }
+        $('pdf-btn').textContent = { 'to-img': '导出图片 ZIP', 'to-txt': '提取 PDF 文字', merge: '合并为 PDF' }[$('pdf-action').value] || '开始处理';
+      };
+      ['vid-format', 'aud-format', 'doc-format'].forEach(id => $(id).addEventListener('change', updateActionLabels));
       const renderQueue = entries => {
         const waiting = entries.filter(job => job.status === 'waiting').length;
         const running = entries.some(job => job.status === 'running');
         $('queue-summary').textContent = `${running ? '正在处理 1 个任务' : '当前空闲'} · 等待 ${waiting} 个任务`;
         $('queue-clear').disabled = !waiting;
+        if (waiting) $('queue-panel').open = true;
         $('queue-list').replaceChildren();
         const names = { waiting: '等待中', running: '处理中', done: '已完成', failed: '有失败项', cancelled: '已取消' };
         for (const job of entries) {
@@ -168,7 +180,7 @@
         const list = $('results-list');
         list.replaceChildren();
         const successes = state.results.filter(result => result.blob);
-        $('results-summary').textContent = state.results.length ? `${successes.length} 个成功，${state.results.length - successes.length} 个失败 · ${formatSize(retainedBytes())} / 128 MB · 结果保留至清空或离开页面` : '暂无结果。结果保留至清空或离开页面。';
+        $('results-summary').textContent = state.results.length ? `${successes.length} 个成功，${state.results.length - successes.length} 个失败 · ${formatSize(retainedBytes())} / 128 MB · 结果保留至清空或离开页面` : '转换后在这里下载。结果只保留在本页，刷新后清空。';
         for (const result of state.results) {
           const row = document.createElement('li');
           row.className = result.blob ? 'result-row' : 'result-row result-error';
@@ -183,7 +195,7 @@
             warning.className = 'help'; warning.textContent = `转换说明：${result.warnings.join('；')}`;
             info.appendChild(warning);
           }
-          if (result.blob) { const link = document.createElement('a'); link.href = result.url; link.download = result.name; link.textContent = '下载'; row.appendChild(link); }
+          if (result.blob) { const link = document.createElement('a'); link.href = result.url; link.download = result.name; link.textContent = '下载'; link.setAttribute('aria-label', `下载 ${result.name}`); row.appendChild(link); }
           const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '删除'; remove.setAttribute('aria-label', `删除结果 ${result.name}`);
           remove.dataset.resultMutation = 'true';
           remove.disabled = state.busy;
@@ -202,7 +214,7 @@
           const result = state.results.filter(item => item.linkId === `${prefix}-link` && item.blob).at(-1);
           $(`${prefix}-down`).classList.toggle('hidden', !result);
           const link = $(`${prefix}-link`);
-          if (result) { link.href = result.url; link.download = result.name; }
+          if (result) { link.href = result.url; link.download = result.name; link.textContent = `下载 ${result.name}`; }
           else link.removeAttribute('href');
         }
       };
@@ -215,6 +227,7 @@
         state.results.push({ id: state.nextResultId++, blob, url, name: filename, linkId: linkEl.id, ...metadata });
         linkEl.href = url;
         linkEl.download = filename;
+        linkEl.textContent = `下载 ${filename}`;
         linkEl.parentElement.classList.remove('hidden');
         renderResults();
       };
@@ -271,6 +284,8 @@
         const disabled = $('img-format').value === 'png';
         $('img-quality').dataset.optionDisabled = String(disabled);
         $('img-quality').disabled = disabled;
+        $('img-format-help').textContent = { webp: '体积通常更小，适合网页与分享。', jpeg: '兼容常见设备；透明区域会填充白色。', png: '保留透明背景，无损输出，体积可能更大。' }[$('img-format').value] || '';
+        updateActionLabels();
       };
       $('img-format').addEventListener('change', updateImageOptions);
       $('retry-btn').addEventListener('click', () => {
@@ -363,7 +378,7 @@
       };
       // Validate before expensive decoding and give immediate feedback.
       const renderFiles = input => {
-        const target = $(input.id === 'img-input' ? 'img-files' : 'pdf-files');
+        const target = $(input.id.replace('-input', '-files'));
         target.replaceChildren();
         const files = state.selectedFiles[input.id] || [];
         files.forEach((file, index) => {
@@ -394,8 +409,9 @@
             state.selectedFiles[input.id] = [];
             selectionStatus(`文件不能为空，单个文件最多 ${limit} MB，总大小最多 200 MB，每批最多 100 个文件`);
           } else { state.selectedFiles[input.id] = files; selectionStatus(files.length ? `已选择 ${files.length} 个文件` : '就绪'); }
-          if (['img-input','pdf-input'].includes(input.id)) renderFiles(input);
+          renderFiles(input);
           if (input.id === 'doc-input') updateDocFormats();
+          updateActionLabels();
         });
       });
       document.querySelectorAll('.drop-zone').forEach(zone => {
@@ -405,6 +421,10 @@
           event.preventDefault(); zone.classList.remove('drag-over');
           if (!event.dataTransfer?.files.length) return;
           const input = $(zone.dataset.input), transfer = new DataTransfer();
+          if (!input.multiple && event.dataTransfer.files.length > 1) {
+            setStatus('此功能一次只处理一个文件，请拖入一个文件；原来的选择已保留');
+            return;
+          }
           for (const file of event.dataTransfer.files) transfer.items.add(file);
           input.files = transfer.files; input.dispatchEvent(new Event('change', { bubbles: true }));
         });
@@ -413,16 +433,20 @@
         if (!Array.from(event.dataTransfer?.types || []).includes('Files')) return;
         event.preventDefault();
         if (event.type === 'drop' && !event.target?.closest?.('.drop-zone')) {
-          setStatus(state.busy ? '正在处理文件，请稍后再选择文件' : '请将文件拖到图片或 PDF 的文件选择区域');
+          setStatus('请将文件拖到当前功能的文件选择区域');
         }
       };
       document.addEventListener('dragover', preventFileNavigation);
       document.addEventListener('drop', preventFileNavigation);
-      $('pdf-action').addEventListener('change', () => $('pdf-pages-field').classList.toggle('hidden', $('pdf-action').value === 'merge'));
+      $('pdf-action').addEventListener('change', () => {
+        $('pdf-pages-field').classList.toggle('hidden', $('pdf-action').value === 'merge');
+        updateActionLabels();
+      });
       const updateDocFormats = () => {
         const excel = /\.xlsx$/i.test($('doc-input').files[0]?.name || '');
         for (const option of $('doc-format').options) option.disabled = ['json','csv'].includes(option.value) && !excel;
         if ($('doc-format').selectedOptions[0].disabled) $('doc-format').value = 'pdf';
+        updateActionLabels();
       };
       window.addEventListener('pagehide', () => {
         queue.clearPending();
@@ -898,7 +922,7 @@
 
       // 初始化
       updateMiniStatus();
-      setStatus("就绪");
+      setStatus('选择文件，使用默认设置即可开始。');
       updateDocFormats();
       updateImageOptions();
       renderResults();

@@ -130,12 +130,14 @@ test('mobile touch with 4x CPU slowdown converts textured 12MP image and release
       return Array.from(new Uint8Array(await blob.arrayBuffer()));
     });
     await page.locator('#img-input').setInputFiles({ name: 'texture.png', mimeType: 'image/png', buffer: Buffer.from(png) });
+    await fixture.openImageOptions(page);
     await page.locator('#img-width').fill('1000'); await convert(page, 'img');
     const size = await page.locator('#img-link').evaluate(async link => { const img = new Image(); img.src = link.href; await img.decode(); return [img.naturalWidth, img.naturalHeight]; });
     expect(size).toEqual([1000, 750]);
     await page.locator('#results-clear').tap();
     expect(await page.evaluate(() => window.liveUrls.size)).toBe(0);
     await page.locator('#img-input').setInputFiles({ name: 'repeat.png', mimeType: 'image/png', buffer: fixture.png() });
+    await fixture.openImageOptions(page);
     await page.locator('#img-width').fill('');
     for (let i = 0; i < 22; i++) {
       await convert(page, 'img'); await page.locator('#results-clear').tap();

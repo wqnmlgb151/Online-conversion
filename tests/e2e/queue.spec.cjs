@@ -26,9 +26,11 @@ test('cross-feature queue freezes files and options while forms remain editable'
   await page.goto('/');
   await holdFirstEncoding(page);
   await page.locator('#img-input').setInputFiles(image('second.png'));
+  await fixture.openImageOptions(page);
   await page.locator('#img-width').fill('12');
   await page.locator('#img-btn').click();
   await page.locator('#img-input').setInputFiles(image('never-submitted.png'));
+  await fixture.openImageOptions(page);
   await page.locator('#img-width').fill('30');
   await page.locator('[data-tab="doc"]').click();
   await page.locator('#doc-input').setInputFiles({ name: 'kept.txt', mimeType: 'text/plain', buffer: Buffer.from('提交时的内容') });
@@ -138,6 +140,7 @@ test('12 megapixel image can resize and release its conversion slot', async ({ p
     return Array.from(new Uint8Array(await blob.arrayBuffer()));
   });
   await page.locator('#img-input').setInputFiles({ name: 'large.png', mimeType: 'image/png', buffer: Buffer.from(buffer) });
+  await fixture.openImageOptions(page);
   await page.locator('#img-width').fill('1600');
   await page.locator('#img-btn').click();
   await expect(page.locator('#task-progress')).toBeHidden();

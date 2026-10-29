@@ -4,3 +4,7 @@ playwright-report/
 .test-cache/
 .playwright-mcp/
 dist/
+docs/LIVE-VERIFICATION.md
+docs/ROADMAP.md
+docs/STAGE-1.md
+docs/STAGE-2.md

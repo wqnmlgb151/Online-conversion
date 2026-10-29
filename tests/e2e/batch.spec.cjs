@@ -26,7 +26,9 @@ test('batch isolates failures, retains outputs across tabs and ZIP resolves dupl
   await page.goto('/');
   await page.locator('#img-input').setInputFiles([image(), { name: 'broken.png', mimeType: 'image/png', buffer: Buffer.from('broken') }, image()]);
   await page.locator('#img-format').selectOption('webp');
+  await fixture.openImageOptions(page);
   await page.locator('#img-width').fill('12');
+  await fixture.openImageOptions(page);
   await page.locator('#img-height').fill('12');
   await finish(page, 'img');
   await expect(page.locator('#results-summary')).toContainText('2 个成功，1 个失败');
@@ -62,7 +64,9 @@ test('drop accepts multiple files and exact resize outputs chosen dimensions', a
   }, fixture.png().toString('base64'));
   await expect(page.locator('#img-files li')).toHaveCount(2);
   await page.locator('#img-format').selectOption('png');
+  await fixture.openImageOptions(page);
   await page.locator('#img-width').fill('10'); await page.locator('#img-height').fill('7');
+  await fixture.openImageOptions(page);
   await page.locator('#img-ratio').uncheck(); await finish(page, 'img');
   const zip = await zipDownload(page);
   expect(Object.keys(zip.files)).toEqual(['first.png', 'second.png']);
@@ -75,9 +79,11 @@ test('drop accepts multiple files and exact resize outputs chosen dimensions', a
 test('invalid resize preserves prior results and one-side resize retains ratio', async ({ page }) => {
   await page.goto('/');
   await page.locator('#img-input').setInputFiles(image()); await finish(page, 'img');
+  await fixture.openImageOptions(page);
   await page.locator('#img-width').fill('1.5'); await finish(page, 'img');
   await expect(page.locator('#statusText')).toContainText('尺寸必须');
   await expect(page.locator('#results-list a')).toHaveCount(1);
+  await fixture.openImageOptions(page);
   await page.locator('#img-width').fill('20'); await finish(page, 'img');
   await expect(page.locator('#results-list')).toContainText('20 × 10');
   await expect(page.locator('#retry-btn')).toBeHidden();
@@ -185,6 +191,7 @@ test('PNG ignores unused quality and labeled tabs support keyboard navigation', 
   await page.goto('/');
   expect(await page.locator('input, select').evaluateAll(inputs => inputs.every(input => input.labels.length > 0))).toBe(true);
   await page.locator('#img-input').setInputFiles(image());
+  await fixture.openImageOptions(page);
   await page.locator('#img-quality').fill('');
   await page.locator('#img-format').selectOption('png');
   await expect(page.locator('#img-quality')).toBeDisabled();
